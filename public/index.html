@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes"
+    />
+    <title>✨ Tambola · Full Housie</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/style.css" />
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <!-- ===== GAME OVER OVERLAY (replaces banner) ===== -->
+      <!-- ===== GAME OVER OVERLAY (replaces banner) ===== -->
+      <div id="gameOverOverlay" class="modal-overlay game-over-overlay">
+        <div class="modal-content glass-card">
+          <span class="close" id="closeGameOverBtn">&times;</span>
+          <h2>🎯 GAME OVER</h2>
+          <p id="gameOverReason"></p>
+          <button
+            class="btn primary"
+            onclick="
+              document
+                .getElementById('gameOverOverlay')
+                .classList.remove('show')
+            "
+          >
+            OK
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== HOST VIEW ===== -->
+      <div id="hostView" class="view host-view">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="login-screen">
+          <div class="glass-card">
+            <div class="login-header">
+              <span class="icon">🔐</span>
+              <h2>Host Login</h2>
+            </div>
+            <input
+              type="text"
+              id="username"
+              class="input"
+              placeholder="Username"
+              autocomplete="off"
+            />
+            <input
+              type="password"
+              id="password"
+              class="input"
+              placeholder="Password"
+            />
+            <button id="loginBtn" class="btn primary">Login</button>
+            <div id="loginError" class="error-message"></div>
+          </div>
+        </div>
+
+        <!-- Dashboard (visible after login) -->
+        <div id="dashboard" class="dashboard" style="display: none">
+          <!-- Header with theme toggle -->
+          <div class="header">
+            <h1>🎯 Host Panel</h1>
+            <div style="display: flex; gap: 0.5rem">
+              <span id="statusBadge" class="badge">NO GAME</span>
+              <button class="theme-toggle icon-btn">☀️</button>
+            </div>
+          </div>
+
+          <!-- Host Game Info Card (always visible after game creation) -->
+          <div
+            id="hostGameInfo"
+            class="game-info-card glass-card"
+            style="display: none"
+          ></div>
+
+          <!-- Scheduled Start Time Display (always visible) -->
+          <div id="hostScheduledTime" class="scheduled-time-container"></div>
+
+          <!-- Stats (always visible) -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">🎫</div>
+              <div class="stat-label">Total</div>
+              <div class="stat-value" id="totalTickets">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">✅</div>
+              <div class="stat-label">Booked</div>
+              <div class="stat-value success" id="bookedTickets">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">⚡</div>
+              <div class="stat-label">Free</div>
+              <div class="stat-value info" id="availableTickets">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🏆</div>
+              <div class="stat-label">Prizes</div>
+              <div class="stat-value warning" id="winnersCount">0/0</div>
+            </div>
+          </div>
+
+          <!-- Game Creation Wizard (visible only when no game) -->
+          <div id="createGameWizard" class="wizard glass-card">
+            <div id="wizardContainer"></div>
+          </div>
+
+          <!-- Navigation Bar (visible when game exists) -->
+          <div id="hostNavBar" class="host-nav" style="display: none">
+            <button class="nav-btn active" data-tab="whatsapp">
+              📱 WhatsApp
+            </button>
+            <button class="nav-btn" data-tab="draworder">🎲 Draw Order</button>
+            <button class="nav-btn" data-tab="gamecontrol">
+              🎮 Game Control
+            </button>
+          </div>
+
+          <!-- Tab Content Container (visible when game exists) -->
+          <div id="tabContent" class="tab-content" style="display: none">
+            <!-- WhatsApp Config Tab -->
+            <div id="tab-whatsapp" class="tab-pane active">
+              <div
+                id="whatsappConfigContainer"
+                class="whatsapp-config glass-card"
+              ></div>
+            </div>
+            <!-- Custom Draw Order Tab -->
+            <div id="tab-draworder" class="tab-pane">
+              <div id="customDrawOrderContainer"></div>
+            </div>
+            <!-- Game Control Tab -->
+            <div id="tab-gamecontrol" class="tab-pane">
+              <!-- Game Settings Container (inside Game Control) -->
+              <div id="gameSettingsContainer"></div>
+
+              <!-- Active Game Controls -->
+              <div id="gameControls" class="controls-panel glass-card">
+                <div class="panel-header">
+                  <h3>🎮 Game Control</h3>
+                  <button id="toggleGameControlBtn" class="icon-btn">▼</button>
+                </div>
+                <div id="gameControlContent" class="collapsible">
+                  <div class="button-group">
+                    <button id="startGameBtn" class="btn success">START</button>
+                    <button id="resetGameBtn" class="btn danger">RESET</button>
+                  </div>
+
+                  <!-- Inline countdown -->
+                  <div
+                    id="inlineCountdown"
+                    class="inline-countdown"
+                    style="display: none"
+                  >
+                    <h4>⏱️ Set Countdown</h4>
+                    <input
+                      type="text"
+                      id="inlineCountdownInput"
+                      class="input"
+                      value=""
+                      placeholder="Seconds (e.g. 30)"
+                    />
+                    <div class="quick-select">
+                      <button class="quick-btn" data-time="15">15s</button>
+                      <button class="quick-btn" data-time="30">30s</button>
+                      <button class="quick-btn" data-time="60">1m</button>
+                      <button class="quick-btn" data-time="120">2m</button>
+                      <button class="quick-btn" data-time="300">5m</button>
+                    </div>
+                    <div class="button-group">
+                      <button id="cancelInlineCountdownBtn" class="btn danger">
+                        Cancel
+                      </button>
+                      <button
+                        id="confirmInlineCountdownBtn"
+                        class="btn success"
+                      >
+                        Start
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Scheduling Panel -->
+              <div
+                id="schedulingPanel"
+                class="scheduling-panel glass-card"
+                style="display: none"
+              >
+                <h3>⏰ Schedule Game Start</h3>
+                <input
+                  type="datetime-local"
+                  id="scheduledStartInput"
+                  class="input"
+                />
+                <div class="button-group">
+                  <button id="scheduleGameBtn" class="btn success">
+                    Schedule
+                  </button>
+                  <button id="pauseCountdownBtn" class="btn warning">
+                    Pause
+                  </button>
+                  <button id="resumeCountdownBtn" class="btn primary">
+                    Resume
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Countdown Display -->
+          <div
+            id="hostCountdownCard"
+            class="countdown-card glass-card"
+            style="display: none"
+          >
+            <div class="countdown-label">⏳ GAME STARTS IN</div>
+            <div id="hostCountdownNumber" class="countdown-number">--</div>
+          </div>
+
+          <!-- Sticky Current Number (hidden in host view) -->
+          <div
+            id="hostCurrentNumberSticky"
+            class="sticky-number"
+            style="display: none"
+          >
+            <span>🎲 Current:</span> <span id="hostCurrentNumberValue">--</span>
+          </div>
+
+          <!-- Winners Section (always visible) -->
+          <div
+            id="hostWinnersSection"
+            class="winners-section glass-card"
+            style="display: none"
+          >
+            <div class="winners-header">
+              <h2>🏆 Winners</h2>
+              <!-- *** NEW: static print button always visible in header *** -->
+              <button
+                id="printWinnersPdfBtn"
+                class="btn primary small"
+                style="display: none"
+              >
+                🖨️ Print PDF
+              </button>
+              <div class="progress-container">
+                <div id="hostWinnersProgress" class="progress-bar"></div>
+              </div>
+            </div>
+            <div id="hostWinnersList" class="winners-list"></div>
+          </div>
+
+          <!-- Ticket Management -->
+          <div class="ticket-toolbar">
+            <!-- Filter Buttons Container -->
+            <div id="hostFilterButtons"></div>
+            <input
+              type="text"
+              id="hostSearchInput"
+              class="input search"
+              placeholder="Search by ID or player..."
+            />
+            <button id="generatePdfBtn" class="btn secondary">
+              📄 PDF Grid
+            </button>
+            <button id="bookedListBtn" class="btn primary">
+              📋 Booked List
+            </button>
+          </div>
+
+          <!-- Host Batch Actions -->
+          <div
+            id="hostBatchActions"
+            class="batch-actions"
+            style="display: none"
+          >
+            <button id="deleteSelectedUnbookedBtn" class="btn danger">
+              🗑️ Delete Selected Unbooked
+            </button>
+            <button id="deleteAllUnbookedBtn" class="btn danger">
+              🗑️ Delete All Unbooked
+            </button>
+            <button id="cancelSelectedPendingBtn" class="btn warning">
+              ❌ Cancel Selected Pending
+            </button>
+            <button id="cancelAllPendingBtn" class="btn warning">
+              ❌ Cancel All Pending
+            </button>
+          </div>
+
+          <div id="ticketsGrid" class="ticket-grid"></div>
+
+          <!-- Logout Button -->
+          <button id="logoutBtn" class="btn danger logout">Logout</button>
+        </div>
+      </div>
+
+      <!-- ===== PLAYER VIEW ===== -->
+      <div id="playerView" class="view player-view">
+        <div class="header">
+          <h1>🎯 Tambola</h1>
+          <div style="display: flex; gap: 0.5rem">
+            <span id="playerStatusBadge" class="badge">NO GAME</span>
+            <button class="theme-toggle icon-btn">☀️</button>
+          </div>
+        </div>
+
+        <!-- Prize Info Card -->
+        <div
+          id="playerPrizeInfo"
+          class="prize-info-card glass-card"
+          style="display: none"
+        ></div>
+
+        <!-- Scheduled Start Time Display -->
+        <div id="playerScheduledTime" class="scheduled-time-container"></div>
+
+        <!-- View Available Button -->
+        <button
+          id="viewAvailableBtn"
+          class="btn primary"
+          style="display: none; margin-bottom: 1rem"
+        >
+          📋 View Available Tickets
+        </button>
+
+        <!-- Stats -->
+        <div class="stats-grid" id="playerStats">
+          <div class="stat-card">
+            <div class="stat-icon">🎫</div>
+            <div class="stat-label">Available Tickets</div>
+            <div class="stat-value info" id="playerAvailableTickets">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🏆</div>
+            <div class="stat-label">Prizes</div>
+            <div class="stat-value success" id="playerWinnersCount">0/0</div>
+          </div>
+        </div>
+
+        <!-- Countdown Card -->
+        <div
+          id="playerCountdownCard"
+          class="countdown-card glass-card"
+          style="display: none"
+        >
+          <div class="countdown-label">⏳ GAME STARTS IN</div>
+          <div id="playerCountdownNumber" class="countdown-number">--</div>
+        </div>
+
+        <!-- Sticky Current Number -->
+        <div
+          id="playerCurrentNumberSticky"
+          class="sticky-number"
+          style="display: none"
+        >
+          <span>🎲 Current:</span> <span id="playerCurrentNumberValue">--</span>
+        </div>
+
+        <!-- Called Numbers Grid -->
+        <div id="playerCalledWrapper" class="called-wrapper glass-card">
+          <div class="called-header">
+            <h2>🔢 Called Numbers</h2>
+            <span id="playerCalledCountDisplay">0/90</span>
+          </div>
+          <div id="playerCalledNumbersGrid" class="number-grid"></div>
+        </div>
+
+        <!-- Winners Section -->
+        <div
+          id="playerWinnersSection"
+          class="winners-section glass-card"
+          style="display: none"
+        >
+          <div class="winners-header">
+            <h2>🏆 Winners</h2>
+            <div class="progress-container">
+              <div id="playerWinnersProgress" class="progress-bar"></div>
+            </div>
+          </div>
+          <div id="playerWinnersList" class="winners-list"></div>
+        </div>
+
+        <!-- Ticket Search -->
+        <div id="playerSearchWrapper" class="ticket-toolbar">
+          <input
+            type="text"
+            id="playerSearchInput"
+            class="input search"
+            placeholder="Search by ID or player..."
+          />
+        </div>
+
+        <!-- Ticket Grid -->
+        <div id="playerTicketsGrid" class="ticket-grid"></div>
+        <div id="playerNoResults" class="no-results">No tickets found</div>
+      </div>
+
+      <!-- ===== MODALS ===== -->
+
+      <!-- Winner Modal -->
+      <div id="winnerModal" class="modal-overlay">
+        <div class="modal-content glass-card">
+          <span class="close">&times;</span>
+          <h3>🏆 Winning Ticket</h3>
+          <div id="modalWinnerInfo"></div>
+          <div id="modalTicketGrid" class="modal-ticket-grid"></div>
+          <div id="modalCalledList" class="called-list"></div>
+        </div>
+      </div>
+
+      <!-- Ticket Grid Modal (for PDF) -->
+      <div id="ticketGridModal" class="modal-overlay">
+        <div class="modal-content glass-card">
+          <span class="close">&times;</span>
+          <h3>📋 Ticket Grid</h3>
+          <div id="ticketGridContainer" class="ticket-grid-container"></div>
+          <div class="button-group">
+            <button id="cancelGridModalBtn" class="btn danger">Cancel</button>
+            <button id="printPdfBtn" class="btn primary">Print PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Booked List Modal (updated with header print button) -->
+      <div id="bookedListModal" class="modal-overlay">
+        <div class="modal-content glass-card">
+          <div
+            class="modal-header"
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 1rem;
+            "
+          >
+            <h3>📋 Booked Tickets</h3>
+            <div>
+              <button id="printBookedListBtn" class="btn primary small">
+                🖨️ Print PDF
+              </button>
+              <span class="close" style="margin-left: 0.5rem">&times;</span>
+            </div>
+          </div>
+          <table class="booked-table">
+            <thead>
+              <tr>
+                <th>Ticket ID</th>
+                <th>Player Name</th>
+              </tr>
+            </thead>
+            <tbody id="bookedListBody"></tbody>
+          </table>
+          <!-- Removed bottom button group -->
+        </div>
+      </div>
+
+      <!-- Player Compact Grid Modal (with selection bar inside) -->
+      <div id="playerCompactGridModal" class="modal-overlay">
+        <div class="modal-content glass-card">
+          <span class="close" id="closeCompactGridBtn">&times;</span>
+          <h3>📋 Available Tickets</h3>
+          <!-- Selection Bar inside modal -->
+          <div
+            id="playerSelectionBar"
+            class="selection-bar"
+            style="margin-bottom: 1rem"
+          >
+            <span>Selected: <span id="selectedCount">0</span></span>
+            <button id="bookSelectedBtn" class="btn success">
+              📲 Book Selected
+            </button>
+            <button id="clearSelectionBtn" class="btn secondary">Clear</button>
+          </div>
+          <div
+            id="playerCompactGridContainer"
+            class="player-ticket-grid-container"
+          ></div>
+          <div class="button-group" style="margin-top: 1rem">
+            <button id="closeCompactGridBtn2" class="btn danger">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="popupContainer" class="popup-container"></div>
+    </div>
+
+    <script src="/js/script.js"></script>
+    <script>
+      // Additional close handler for booked list modal
+      document
+        .getElementById("closeBookedListBtn")
+        ?.addEventListener("click", () => {
+          document.getElementById("bookedListModal").classList.remove("show");
+        });
+      // Additional close for compact grid modal
+      document
+        .getElementById("closeCompactGridBtn2")
+        ?.addEventListener("click", () => {
+          document
+            .getElementById("playerCompactGridModal")
+            .classList.remove("show");
+        });
+    </script>
+  </body>
+</html>

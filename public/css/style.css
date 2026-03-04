@@ -1,0 +1,1228 @@
+/* ---------- RESET & VARIABLES ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Inter", sans-serif;
+}
+
+:root {
+  --bg-dark: #0a0a0f;
+  --surface: #16161f;
+  --surface-light: #1e1e2a;
+  --primary: #6366f1;
+  --primary-hover: #4f52e0;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --border: #2a2a35;
+  --glass-bg: rgba(30, 30, 42, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* Light mode variables */
+body.light-mode {
+  --bg-dark: #f5f5f7;
+  --surface: #ffffff;
+  --surface-light: #e9e9ed;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --info: #2563eb;
+  --text-primary: #1f2937;
+  --text-secondary: #4b5563;
+  --border: #d1d5db;
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(0, 0, 0, 0.08);
+}
+
+body {
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  transition:
+    background 0.3s,
+    color 0.3s;
+}
+
+.app {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ---------- UTILITY ---------- */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: 0;
+  padding: 1.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.btn {
+  border: none;
+  border-radius: 0;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.2);
+}
+
+.btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+.btn.success {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+}
+.btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+.btn.warning {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: white;
+}
+.btn.secondary {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.btn.small {
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+}
+.btn.disabled,
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0.75rem 1.2rem;
+  color: var(--text-primary);
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.input:focus {
+  outline: 2px solid var(--primary);
+}
+
+.badge {
+  padding: 0.3rem 0.8rem;
+  border-radius: 0;
+  background: var(--surface-light);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+
+/* ---------- GAME OVER OVERLAY (replaces banner) ---------- */
+.game-over-overlay .modal-content {
+  text-align: center;
+  max-width: 400px;
+}
+.game-over-overlay h2 {
+  color: var(--danger);
+  margin-bottom: 1rem;
+}
+.game-over-overlay p {
+  font-size: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ---------- LOGIN ---------- */
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+.login-screen .glass-card {
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+
+.login-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.login-screen .glass-card .input {
+  padding: 1rem 1.5rem;
+  font-size: 1.1rem;
+  margin-bottom: 1.25rem;
+}
+
+.login-screen .glass-card .btn.primary {
+  display: block;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  font-size: 1.2rem;
+  margin-top: 0.5rem;
+}
+
+.login-header .icon {
+  font-size: 2rem;
+}
+
+.error-message {
+  color: var(--danger);
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* ---------- HEADER ---------- */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary), var(--info));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ---------- STATS ---------- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 1rem;
+  text-align: center;
+}
+
+.stat-icon {
+  font-size: 2rem;
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.stat-value.success {
+  color: var(--success);
+}
+.stat-value.info {
+  color: var(--info);
+}
+.stat-value.warning {
+  color: var(--warning);
+}
+
+/* ---------- GAME INFO CARDS ---------- */
+.game-info-card,
+.prize-info-card {
+  margin-bottom: 1.5rem;
+}
+
+.prize-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.prize-category {
+  background: var(--surface);
+  border-radius: 0;
+  padding: 1rem;
+  flex: 1 1 200px;
+}
+
+.prize-category h4 {
+  margin-bottom: 0.5rem;
+  color: var(--primary);
+}
+
+.prize-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.prize-item.awarded {
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+.prize-item:last-child {
+  border-bottom: none;
+}
+
+/* ---------- WIZARD ---------- */
+.wizard {
+  margin-bottom: 1.5rem;
+}
+
+.prize-category-card {
+  background: var(--surface);
+  border-radius: 0;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.prize-item {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.prize-item input {
+  flex: 1 1 120px;
+}
+
+.remove-prize-btn {
+  background: var(--danger);
+  border: none;
+  border-radius: 0;
+  padding: 0.5rem 1rem;
+  color: white;
+  cursor: pointer;
+}
+
+/* ---------- WHATSAPP CONFIG ---------- */
+.whatsapp-config {
+  margin-bottom: 1.5rem;
+}
+
+.whatsapp-config h3 {
+  margin-bottom: 1rem;
+}
+
+.whatsapp-add-range {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.whatsapp-add-range input {
+  flex: 1 1 120px;
+}
+
+.whatsapp-range-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  border-radius: 0;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.whatsapp-range-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.btn.small {
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+/* ---------- CUSTOM DRAW ORDER ---------- */
+.custom-draw-section {
+  margin-bottom: 1.5rem;
+}
+.custom-draw-section textarea {
+  resize: vertical;
+  min-height: 80px;
+  margin-top: 0.5rem;
+}
+.status-message {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--info);
+}
+
+/* ---------- SCHEDULED TIME DISPLAY ---------- */
+.scheduled-time-container {
+  margin-bottom: 1.5rem;
+}
+.scheduled-time-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border-radius: 0;
+  padding: 1rem 1.5rem;
+  border: 1px solid var(--primary);
+}
+.scheduled-time-card .icon {
+  font-size: 2rem;
+}
+.scheduled-info {
+  flex: 1;
+}
+.scheduled-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+.scheduled-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* ---------- CONTROLS ---------- */
+.controls-panel,
+.scheduling-panel {
+  margin-bottom: 1.5rem;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.collapsible {
+  overflow: hidden;
+  transition: max-height 0.3s;
+}
+
+.collapsible.collapsed {
+  max-height: 0;
+  padding: 0;
+}
+
+/* ---------- SETTINGS SECTION ---------- */
+.settings-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.settings-section h4 {
+  margin-bottom: 0.75rem;
+}
+.setting-item {
+  margin: 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.setting-item input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+.setting-item label {
+  font-size: 1rem;
+  cursor: pointer;
+}
+.setting-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-left: 1.7rem;
+}
+
+/* ---------- NAVIGATION BAR ---------- */
+.host-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+}
+
+.nav-btn {
+  background: transparent;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+}
+
+.nav-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ---------- TAB CONTENT ---------- */
+.tab-pane {
+  display: none;
+}
+.tab-pane.active {
+  display: block;
+}
+
+/* ---------- COUNTDOWN ---------- */
+.countdown-card {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.countdown-label {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.countdown-number {
+  font-size: 4rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--primary);
+}
+
+/* ---------- STICKY NUMBER ---------- */
+.sticky-number {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0.75rem 1.5rem;
+  text-align: center;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- CALLED NUMBERS ---------- */
+.called-wrapper {
+  margin-bottom: 1.5rem;
+}
+
+.called-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 4px;
+}
+
+.number-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.number-cell.called {
+  background: var(--success);
+  color: white;
+  border-color: var(--success);
+}
+
+/* ---------- WINNERS ---------- */
+.winners-section {
+  margin-bottom: 1.5rem;
+}
+
+.winners-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.progress-container {
+  flex: 1;
+  max-width: 200px;
+  height: 6px;
+  background: var(--surface);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--primary);
+  width: 0%;
+  transition: width 0.3s;
+}
+
+.winners-list {
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.winner-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border-radius: 0;
+  padding: 1rem;
+  border-left: 4px solid var(--primary);
+}
+
+.winner-card.first {
+  border-left-color: gold;
+}
+.winner-card.second {
+  border-left-color: silver;
+}
+.winner-card.third {
+  border-left-color: #cd7f32;
+}
+
+.winner-medal {
+  font-size: 2rem;
+  min-width: 40px;
+  text-align: center;
+}
+
+.winner-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.winner-order {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.winner-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.winner-ticket,
+.winner-time {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.view-btn {
+  background: var(--info);
+  border: none;
+  border-radius: 0;
+  padding: 0.4rem 0.8rem;
+  color: white;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+/* ---------- TICKETS ---------- */
+.ticket-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+
+/* Filter buttons */
+.filter-buttons {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+.filter-btn {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.filter-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.ticket-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 500px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ticket-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 1rem;
+  position: relative; /* for checkbox positioning */
+}
+
+.ticket-card.available {
+  border-left: 4px solid var(--info);
+}
+.ticket-card.booked {
+  border-left: 4px solid var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+}
+.ticket-card.pending {
+  border-left: 4px solid var(--warning);
+  background: rgba(245, 158, 11, 0.1);
+}
+.ticket-card.winner {
+  border: 2px solid var(--warning);
+}
+
+.ticket-checkbox {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+}
+.ticket-checkbox input {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.ticket-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.ticket-id {
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--primary);
+}
+
+.ticket-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--surface-light);
+}
+
+.ticket-numbers {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 2px;
+  background: var(--surface-light);
+  padding: 0.5rem;
+  border-radius: 0;
+  margin-bottom: 0.75rem;
+}
+
+.ticket-num {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ticket-num.marked {
+  background: var(--success);
+  color: white;
+}
+
+.ticket-num.empty {
+  background: var(--surface-light);
+  border: none;
+}
+
+/* *** NEW: Actions row for unbooked tickets *** */
+.ticket-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.ticket-actions-row .checkbox-label {
+  display: flex;
+  align-items: center;
+  margin-right: auto;
+}
+.ticket-actions-row input[type="checkbox"] {
+  width: 1.8rem;
+  height: 1.8rem;
+  cursor: pointer;
+}
+
+.wa-book-btn {
+  background: #25d366;
+  color: white;
+  border: none;
+  border-radius: 0;
+  padding: 0.75rem;
+  font-weight: 600;
+  width: 100%;
+  cursor: pointer;
+}
+
+/* --- Updated pending-info with checkbox after Cancel --- */
+.pending-info {
+  background: rgba(245, 158, 11, 0.2);
+  border-radius: 0;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+.pending-header {
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+.pending-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.pending-actions .button-group {
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+}
+.pending-actions .checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-left: auto; /* pushes checkbox to the right */
+}
+.pending-actions .checkbox-label input[type="checkbox"] {
+  width: 1.8rem;
+  height: 1.8rem;
+  cursor: pointer;
+}
+
+.inline-form {
+  margin-top: 0.75rem;
+  background: var(--surface-light);
+  border-radius: 0;
+  padding: 1rem;
+}
+
+/* ---------- MODAL ---------- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-overlay.show {
+  display: flex;
+}
+
+.modal-content {
+  max-width: 500px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.close {
+  float: right;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.modal-ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 2px;
+  background: var(--surface-light);
+  padding: 1rem;
+  border-radius: 0;
+  margin: 1rem 0;
+}
+
+.modal-ticket-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-size: 0.8rem;
+}
+
+.modal-ticket-cell.marked {
+  background: var(--success);
+  color: white;
+}
+
+.modal-ticket-cell.empty {
+  background: var(--surface-light);
+  border: none;
+}
+
+.called-list {
+  background: var(--surface);
+  border-radius: 0;
+  padding: 1rem;
+  font-size: 0.9rem;
+}
+
+/* ---------- BOOKED LIST TABLE ---------- */
+.booked-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+.booked-table th,
+.booked-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.booked-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.booked-table td {
+  font-size: 0.9rem;
+}
+
+/* ---------- TICKET GRID MODAL (PDF) ---------- */
+.ticket-grid-container {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  max-height: 350px;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 0;
+  padding: 0.5rem;
+}
+
+.ticket-grid-item {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-size: 0.7rem;
+}
+
+.ticket-grid-item.booked {
+  background: var(--success);
+  color: white;
+}
+
+/* ---------- POPUP ---------- */
+.popup-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2000;
+}
+
+.popup-number {
+  font-size: 6rem;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  background: var(--success);
+  padding: 2rem 4rem;
+  border-radius: 0;
+  animation: floatUp 2s ease-out forwards;
+}
+
+@keyframes floatUp {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(0);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.2) translateY(-20px);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1) translateY(-40px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(-80px);
+  }
+}
+
+/* ---------- QUICK SELECT ---------- */
+.quick-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.quick-btn {
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0.5rem 1rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  flex: 1 0 auto;
+}
+
+.quick-btn:hover {
+  background: var(--primary);
+}
+
+/* ---------- BATCH ACTIONS ---------- */
+.batch-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+/* ---------- NO RESULTS ---------- */
+.no-results {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border-radius: 0;
+  margin-top: 1rem;
+}
+
+/* ---------- PLAYER COMPACT TICKET GRID (inside modal) ---------- */
+.player-ticket-grid-container {
+  max-height: 350px;
+  overflow-y: auto;
+  margin-top: 1rem;
+}
+
+.player-ticket-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  background: var(--surface);
+  border-radius: 0;
+  padding: 0.5rem;
+}
+
+.player-ticket-grid .grid-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.player-ticket-grid .grid-cell.booked {
+  background: var(--success);
+  color: white;
+  border-color: var(--success);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.player-ticket-grid .grid-cell.pending {
+  background: var(--warning);
+  color: white;
+  border-color: var(--warning);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.player-ticket-grid .grid-cell.available {
+  background: var(--surface-light);
+  color: var(--text-primary);
+}
+.player-ticket-grid .grid-cell.selected {
+  outline: 3px solid var(--primary);
+  outline-offset: -1px;
+  background: var(--primary);
+  color: white;
+}
+
+/* ---------- PLAYER SELECTION BAR (now inside modal) ---------- */
+.selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  border-radius: 0;
+}
+.selection-bar span {
+  font-weight: 600;
+}
+#selectedCount {
+  color: var(--primary);
+  font-size: 1.2rem;
+}
+
+/* ---------- SCROLLBAR ---------- */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 0;
+}
+
+/* Wizard spacing */
+.wizard h3 {
+  margin-bottom: 1.25rem;
+}
+
+.wizard .input {
+  margin-bottom: 1rem;
+}
+
+.wizard .btn {
+  margin-top: 0.5rem;
+}
+
+/* Scheduling panel spacing */
+.scheduling-panel h3 {
+  margin-bottom: 1rem;
+}
+
+.scheduling-panel .input {
+  margin-bottom: 1rem;
+}
+
+.scheduling-panel .button-group {
+  margin-top: 0.5rem;
+}
+
+#logoutBtn {
+  margin: 10px;
+  padding: 8px 16px;
+}
+
+/* Inline countdown spacing */
+.inline-countdown {
+  margin-top: 1rem;
+}
+.inline-countdown .input {
+  margin-bottom: 0.5rem;
+  margin-top: 0.5rem;
+}
