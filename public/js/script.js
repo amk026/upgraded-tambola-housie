@@ -50,7 +50,7 @@ let lastSpokenCountdownSecond = -1;
 let currentUtterance = null;
 
 // Current active tab
-let currentTab = "whatsapp";
+let currentTab = "draworder";
 
 // Player selected tickets for multi‑booking
 let selectedTickets = [];
@@ -61,6 +61,163 @@ let hostSelectedPending = [];
 
 // Game over overlay timer
 let gameOverTimer = null;
+
+// ---------- Pattern Checkers (copied from server for simulation) ----------
+function checkEarlyFive(ticketNumbers, calledNumbers) {
+  const flat = ticketNumbers.flat().filter((n) => n !== 0);
+  const markedCount = flat.filter((n) => calledNumbers.includes(n)).length;
+  return markedCount >= 5;
+}
+
+function checkTopLine(ticketNumbers, calledNumbers) {
+  const topRow = ticketNumbers[0].filter((n) => n !== 0);
+  return topRow.every((n) => calledNumbers.includes(n));
+}
+
+function checkMiddleLine(ticketNumbers, calledNumbers) {
+  const middleRow = ticketNumbers[1].filter((n) => n !== 0);
+  return middleRow.every((n) => calledNumbers.includes(n));
+}
+
+function checkBottomLine(ticketNumbers, calledNumbers) {
+  const bottomRow = ticketNumbers[2].filter((n) => n !== 0);
+  return bottomRow.every((n) => calledNumbers.includes(n));
+}
+
+function checkFullHouse(ticketNumbers, calledNumbers) {
+  const flat = ticketNumbers.flat().filter((n) => n !== 0);
+  return flat.every((n) => calledNumbers.includes(n));
+}
+
+function checkCorners(ticketNumbers, calledNumbers) {
+  const getRowExtremes = (row) => {
+    const numbersInRow = row.filter((n) => n !== 0);
+    return {
+      first: numbersInRow[0],
+      last: numbersInRow[numbersInRow.length - 1],
+    };
+  };
+
+  const top = getRowExtremes(ticketNumbers[0]);
+  const bottom = getRowExtremes(ticketNumbers[2]);
+
+  return (
+    calledNumbers.includes(top.first) &&
+    calledNumbers.includes(top.last) &&
+    calledNumbers.includes(bottom.first) &&
+    calledNumbers.includes(bottom.last)
+  );
+}
+
+const patternCheckers = {
+  "Early Five": checkEarlyFive,
+  "Top Line": checkTopLine,
+  "Middle Line": checkMiddleLine,
+  "Bottom Line": checkBottomLine,
+  "Full House": checkFullHouse,
+  Corners: checkCorners,
+};
+
+// ---------- Custom Modal Functions (replace alert/confirm/prompt) ----------
+let modalResolve = null;
+let modalReject = null;
+
+function showAlert(message) {
+  return new Promise((resolve) => {
+    document.getElementById("alertMessage").textContent = message;
+    const modal = document.getElementById("alertModal");
+    modal.classList.add("show");
+    const closeHandler = () => {
+      modal.classList.remove("show");
+      document
+        .getElementById("alertOkBtn")
+        .removeEventListener("click", closeHandler);
+      resolve();
+    };
+    document
+      .getElementById("alertOkBtn")
+      .addEventListener("click", closeHandler);
+  });
+}
+
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    document.getElementById("confirmMessage").textContent = message;
+    const modal = document.getElementById("confirmModal");
+    modal.classList.add("show");
+    const yesHandler = () => {
+      modal.classList.remove("show");
+      document
+        .getElementById("confirmYesBtn")
+        .removeEventListener("click", yesHandler);
+      document
+        .getElementById("confirmNoBtn")
+        .removeEventListener("click", noHandler);
+      resolve(true);
+    };
+    const noHandler = () => {
+      modal.classList.remove("show");
+      document
+        .getElementById("confirmYesBtn")
+        .removeEventListener("click", yesHandler);
+      document
+        .getElementById("confirmNoBtn")
+        .removeEventListener("click", noHandler);
+      resolve(false);
+    };
+    document
+      .getElementById("confirmYesBtn")
+      .addEventListener("click", yesHandler);
+    document
+      .getElementById("confirmNoBtn")
+      .addEventListener("click", noHandler);
+  });
+}
+
+function showPrompt(message, defaultValue = "") {
+  return new Promise((resolve) => {
+    document.getElementById("promptMessage").textContent = message;
+    document.getElementById("promptInput").value = defaultValue;
+    const modal = document.getElementById("promptModal");
+    modal.classList.add("show");
+    const okHandler = () => {
+      const val = document.getElementById("promptInput").value;
+      modal.classList.remove("show");
+      document
+        .getElementById("promptOkBtn")
+        .removeEventListener("click", okHandler);
+      document
+        .getElementById("promptCancelBtn")
+        .removeEventListener("click", cancelHandler);
+      resolve(val);
+    };
+    const cancelHandler = () => {
+      modal.classList.remove("show");
+      document
+        .getElementById("promptOkBtn")
+        .removeEventListener("click", okHandler);
+      document
+        .getElementById("promptCancelBtn")
+        .removeEventListener("click", cancelHandler);
+      resolve(null);
+    };
+    document.getElementById("promptOkBtn").addEventListener("click", okHandler);
+    document
+      .getElementById("promptCancelBtn")
+      .addEventListener("click", cancelHandler);
+  });
+}
+
+// Helper to replace all native alerts
+window.alert = async function (msg) {
+  await showAlert(msg);
+};
+window.confirm = async function (msg) {
+  return await showConfirm(msg);
+};
+window.prompt = async function (msg, def) {
+  return await showPrompt(msg, def);
+};
 
 // ---------- Helper: Get WhatsApp number for a ticket (with primary fallback) ----------
 function getWhatsAppNumberForTicket(ticketId) {
@@ -163,7 +320,6 @@ socket.on("gameState", (newState) => {
   updateUI();
   handleCountdownTimer();
   toggleWinnersVisibility();
-  // *** UPDATED: show game over overlay ***
   showGameOverOverlay();
 });
 
@@ -192,12 +348,12 @@ socket.on("host:login:failure", (data) => {
   localStorage.removeItem("hostPass");
 });
 
-socket.on("host:error", (data) => {
-  alert(data.message || "An error occurred");
+socket.on("host:error", async (data) => {
+  await showAlert(data.message || "An error occurred");
 });
 
 socket.on("host:customDrawOrderSet", () => {
-  alert("Custom draw order set successfully.");
+  showAlert("Custom draw order set successfully.");
 });
 
 socket.on("host:settingsUpdated", () => {
@@ -260,10 +416,12 @@ function renderHost() {
   renderHostGameInfo();
   renderScheduledTime("host");
 
+  // Always show WhatsApp config (even without game)
+  renderWhatsAppConfig();
+
   if (gameState.status !== "NO_ACTIVE_GAME") {
     document.getElementById("hostNavBar").style.display = "flex";
     document.getElementById("tabContent").style.display = "block";
-    renderWhatsAppConfig();
     renderCustomDrawOrder();
     renderGameSettings(); // includes both settings
     updateGameControlVisibility();
@@ -365,7 +523,7 @@ function renderGameSettings() {
       allowMultipleWinsPerTicket: multiTicket,
       allowMultipleWinnersPerPrize: multiWinner,
     });
-    alert("Settings saved.");
+    showAlert("Settings saved.");
   });
 }
 
@@ -417,7 +575,7 @@ function renderScheduledTime(view) {
   }
 }
 
-function openBookedListModal() {
+async function openBookedListModal() {
   const modal = document.getElementById("bookedListModal");
   const tbody = document.getElementById("bookedListBody");
   if (!tbody) return;
@@ -474,7 +632,6 @@ function printBookedList() {
   window.open(pdfUrl);
 }
 
-// *** NEW: Print winners list PDF (attached to static button) ***
 function printWinnersPdf() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -526,6 +683,7 @@ function renderCustomDrawOrder() {
       <div class="button-group" style="margin-top:0.5rem;">
         <button id="setCustomDrawBtn" class="btn primary">Set Order</button>
         <button id="clearCustomDrawBtn" class="btn secondary">Clear</button>
+        <button id="simulateDrawBtn" class="btn success">🎲 Simulate</button>
       </div>
       <div id="customDrawStatus" class="status-message"></div>
     </div>
@@ -571,9 +729,185 @@ function renderCustomDrawOrder() {
       document.getElementById("customDrawStatus").textContent =
         "Custom order cleared.";
     });
+
+  document
+    .getElementById("simulateDrawBtn")
+    .addEventListener("click", simulateGame);
 }
 
-// WhatsApp configuration (unchanged)
+// ---------- SIMULATION FUNCTION ----------
+function simulateGame() {
+  // Get draw order from textarea
+  const input = document.getElementById("customDrawInput").value.trim();
+  let drawSequence;
+  if (input) {
+    const parts = input.split(",").map((s) => s.trim());
+    const numbers = parts.map((p) => parseInt(p, 10)).filter((n) => !isNaN(n));
+    if (
+      numbers.length !== 90 ||
+      new Set(numbers).size !== 90 ||
+      !numbers.every((n) => n >= 1 && n <= 90)
+    ) {
+      showAlert(
+        "Invalid custom draw order. Please enter a valid sequence or leave empty for random.",
+      );
+      return;
+    }
+    drawSequence = numbers;
+  } else {
+    // Generate random and fill textarea
+    const nums = Array.from({ length: 90 }, (_, i) => i + 1);
+    for (let i = nums.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [nums[i], nums[j]] = [nums[j], nums[i]];
+    }
+    drawSequence = nums;
+    document.getElementById("customDrawInput").value = nums.join(", ");
+  }
+
+  // Clone gameState to simulate
+  const simTickets = gameState.tickets.map((t) => ({ ...t })); // shallow copy, numbers array is fine
+  const simWinners = [];
+  const prizeCategories = JSON.parse(JSON.stringify(gameState.prizeCategories)); // deep copy with awarded flags
+
+  // Reset prize awarded flags
+  prizeCategories.forEach((cat) =>
+    cat.prizes.forEach((p) => (p.awarded = false)),
+  );
+
+  const calledNumbers = [];
+  const allowMultipleWinsPerTicket = gameState.allowMultipleWinsPerTicket;
+  const allowMultipleWinnersPerPrize = gameState.allowMultipleWinnersPerPrize;
+
+  // Results storage: for each prize, store winner info
+  const results = [];
+
+  // Simulate calling numbers in order
+  for (let idx = 0; idx < drawSequence.length; idx++) {
+    const number = drawSequence[idx];
+    calledNumbers.push(number);
+
+    // Check each category for new winners
+    for (const category of prizeCategories) {
+      const pattern = category.name;
+      const checker = patternCheckers[pattern];
+      if (!checker) continue;
+
+      // Eligible tickets: ALL tickets (including unbooked)
+      let eligibleTickets = simTickets; // <--- CHANGED: removed .filter(t => t.isBooked)
+
+      if (!allowMultipleWinsPerTicket) {
+        eligibleTickets = eligibleTickets.filter(
+          (t) => !simWinners.some((w) => w.ticketId === t.id),
+        );
+      } else {
+        eligibleTickets = eligibleTickets.filter(
+          (t) =>
+            !simWinners.some(
+              (w) => w.ticketId === t.id && w.pattern === pattern,
+            ),
+        );
+      }
+
+      const newlyCompleted = eligibleTickets.filter((t) =>
+        checker(t.numbers, calledNumbers),
+      );
+
+      if (newlyCompleted.length === 0) continue;
+
+      // Find first unawarded prize in this category
+      const prize = category.prizes.find((p) => !p.awarded);
+      if (!prize) continue;
+
+      if (allowMultipleWinnersPerPrize) {
+        newlyCompleted.forEach((ticket) => {
+          simWinners.push({
+            pattern,
+            prizeTitle: prize.title,
+            prizeAmount: prize.amount,
+            ticketId: ticket.id,
+            playerName: ticket.bookedBy, // may be undefined/null
+            callNumber: number,
+            callIndex: idx + 1,
+          });
+        });
+        prize.awarded = true;
+        // Record for display
+        results.push({
+          pattern,
+          prizeTitle: prize.title,
+          prizeAmount: prize.amount,
+          winners: newlyCompleted.map((t) => ({
+            ticketId: t.id,
+            playerName: t.bookedBy,
+            callNumber: number,
+            callIndex: idx + 1,
+          })),
+        });
+      } else {
+        const winnerTicket = newlyCompleted[0];
+        simWinners.push({
+          pattern,
+          prizeTitle: prize.title,
+          prizeAmount: prize.amount,
+          ticketId: winnerTicket.id,
+          playerName: winnerTicket.bookedBy,
+          callNumber: number,
+          callIndex: idx + 1,
+        });
+        prize.awarded = true;
+        results.push({
+          pattern,
+          prizeTitle: prize.title,
+          prizeAmount: prize.amount,
+          winners: [
+            {
+              ticketId: winnerTicket.id,
+              playerName: winnerTicket.bookedBy,
+              callNumber: number,
+              callIndex: idx + 1,
+            },
+          ],
+        });
+      }
+    }
+
+    // Stop if all prizes awarded
+    const allAwarded = prizeCategories.every((cat) =>
+      cat.prizes.every((p) => p.awarded),
+    );
+    if (allAwarded) break;
+  }
+
+  // Show results in modal
+  showSimulationResults(results, drawSequence);
+}
+
+function showSimulationResults(results, drawSequence) {
+  const modal = document.getElementById("simulationModal");
+  const tbody = document.getElementById("simulationResultsBody");
+  let html = "";
+  results.forEach((r) => {
+    r.winners.forEach((w) => {
+      html += `<tr>
+        <td>${r.pattern}</td>
+        <td>${r.prizeTitle}</td>
+        <td>₹${r.prizeAmount}</td>
+        <td>${w.ticketId}</td>
+        <td>${w.playerName || "—"}</td>
+        <td>${w.callNumber} (${w.callIndex})</td>
+      </tr>`;
+    });
+  });
+  if (html === "") {
+    html =
+      '<tr><td colspan="6" style="text-align:center">No winners in this simulation</td></tr>';
+  }
+  tbody.innerHTML = html;
+  modal.classList.add("show");
+}
+
+// WhatsApp configuration (now always visible)
 function renderWhatsAppConfig() {
   const container = document.getElementById("whatsappConfigContainer");
   if (!container) return;
@@ -639,11 +973,11 @@ function renderWhatsAppConfig() {
       const end = parseInt(document.getElementById("newRangeEnd").value, 10);
       const number = document.getElementById("newRangeNumber").value.trim();
       if (!start || !end || !number) {
-        alert("Please fill all fields.");
+        showAlert("Please fill all fields.");
         return;
       }
       if (start > end) {
-        alert("Start must be less than or equal to end.");
+        showAlert("Start must be less than or equal to end.");
         return;
       }
       const newConfig = [...(gameState.whatsappConfig || [])];
@@ -661,7 +995,7 @@ function renderWhatsAppConfig() {
       socket.emit("host:updateWhatsappConfig", {
         config: gameState.whatsappConfig,
       });
-      alert("WhatsApp configuration saved.");
+      showAlert("WhatsApp configuration saved.");
     }
   });
 }
@@ -710,21 +1044,17 @@ function renderPlayer() {
   renderPlayerPrizeInfo();
   renderScheduledTime("player");
 
-  // Compact grid is now triggered by button, not inline
   const compactGridContainer = document.getElementById(
     "playerTicketGridContainer",
   );
   if (compactGridContainer) {
     compactGridContainer.style.display = "none";
   }
-  // Show the "View Available" button only during BOOKING_OPEN
   const viewAvailableBtn = document.getElementById("viewAvailableBtn");
   if (viewAvailableBtn) {
     viewAvailableBtn.style.display =
       gameState.status === "BOOKING_OPEN" ? "block" : "none";
   }
-
-  // *** REMOVED: external selection bar display logic (now inside modal) ***
 
   if (gameState.status === "COUNTDOWN" && gameState.countdownEndTime) {
     countdownCard.style.display = "block";
@@ -743,13 +1073,10 @@ function renderPlayer() {
   renderTickets("player");
 }
 
-// *** UPDATED: show compact grid modal and populate it ***
-function showPlayerCompactGrid() {
-  const modal = document.getElementById("playerCompactGridModal");
+// ---------- Compact Grid Functions ----------
+function renderCompactGridContent() {
   const container = document.getElementById("playerCompactGridContainer");
-  if (!modal || !container) return;
-
-  // Build grid
+  if (!container) return;
   let html = '<div class="player-ticket-grid">';
   gameState.tickets.forEach((t) => {
     const numPart = t.id.split("-")[1];
@@ -774,18 +1101,18 @@ function showPlayerCompactGrid() {
         !ticket.isFullHousieWinner
       ) {
         toggleTicketSelection(tid);
-        // Update modal grid cell class after selection
         e.target.classList.toggle("selected", selectedTickets.includes(tid));
-        // Update selection bar count inside modal
         document.getElementById("selectedCount").textContent =
           selectedTickets.length;
       }
     });
   });
+}
 
-  // Update selection count inside modal
+function showPlayerCompactGrid() {
+  const modal = document.getElementById("playerCompactGridModal");
+  renderCompactGridContent();
   document.getElementById("selectedCount").textContent = selectedTickets.length;
-
   modal.classList.add("show");
 }
 
@@ -803,17 +1130,23 @@ function toggleTicketSelection(ticketId) {
 
 function clearTicketSelection() {
   selectedTickets = [];
-  // Update selection bar inside modal
+  // If the modal is open, update the grid to remove highlights
+  const modal = document.getElementById("playerCompactGridModal");
+  if (modal.classList.contains("show")) {
+    renderCompactGridContent();
+  }
   document.getElementById("selectedCount").textContent = 0;
-  // Optionally close modal, but we keep it open so user can see cleared selection
 }
 
-function bookSelectedTickets() {
+async function bookSelectedTickets() {
+  // Close the modal immediately
+  document.getElementById("playerCompactGridModal").classList.remove("show");
+
   if (selectedTickets.length === 0) {
-    alert("No tickets selected.");
+    await showAlert("No tickets selected.");
     return;
   }
-  const playerName = prompt("Enter your name to book these tickets:");
+  const playerName = await showPrompt("Enter your name to book these tickets:");
   if (!playerName || playerName.trim() === "") return;
 
   selectedTickets.forEach((tid) => {
@@ -837,7 +1170,7 @@ function bookSelectedTickets() {
     if (primary) {
       targetNumber = primary.number.replace(/\D/g, "");
     } else {
-      alert(
+      await showAlert(
         "Selected tickets belong to different WhatsApp ranges and no primary number is set. Please contact host.",
       );
       return;
@@ -850,9 +1183,9 @@ function bookSelectedTickets() {
   const url = `https://wa.me/${targetNumber}?text=${message}`;
   window.open(url, "_blank");
 
-  clearTicketSelection();
-  // Close modal
-  document.getElementById("playerCompactGridModal").classList.remove("show");
+  // Clear selection without re‑opening the modal
+  selectedTickets = [];
+  document.getElementById("selectedCount").textContent = 0;
 }
 
 function renderHostGameInfo() {
@@ -925,7 +1258,6 @@ function renderCalledNumbers(view) {
   if (countElem) countElem.textContent = `${gameState.calledNumbers.length}/90`;
 }
 
-// *** UPDATED: renderWinners with static print button ***
 function renderWinners(view) {
   const listId = view === "host" ? "hostWinnersList" : "playerWinnersList";
   const sectionId =
@@ -983,18 +1315,15 @@ function renderWinners(view) {
 
   list.innerHTML = html;
 
-  // For host, show the static print button (already in HTML)
   if (view === "host") {
     document.getElementById("printWinnersPdfBtn").style.display =
       "inline-block";
   } else {
-    // For player, hide print button
     const btn = document.getElementById("printWinnersPdfBtn");
     if (btn) btn.style.display = "none";
   }
 }
 
-// *** UPDATED: renderTickets with new actions row for unbooked tickets and pending checkbox moved ***
 function renderTickets(view) {
   const isHost = view === "host";
   const gridId = isHost ? "ticketsGrid" : "playerTicketsGrid";
@@ -1033,12 +1362,9 @@ function renderTickets(view) {
           t.pendingPlayerName.toLowerCase().includes(term)),
     );
   } else {
-    if (!isHost && gameState.status === "BOOKING_OPEN") {
-      filtered = filtered.filter(
-        (t) => !t.isBooked && !t.isFullHousieWinner && !t.isPending,
-      );
-    } else if (!isHost) {
-      filtered = [];
+    // Player view: show ALL tickets (no hiding)
+    if (!isHost) {
+      // Already all tickets, do nothing
     }
   }
 
@@ -1048,7 +1374,7 @@ function renderTickets(view) {
       noResults.style.display = "block";
       noResults.textContent = searchTerm
         ? "No tickets match your search"
-        : "Search for a ticket to view";
+        : "No tickets available";
     } else {
       grid.innerHTML = '<div class="no-results">No tickets</div>';
     }
@@ -1087,8 +1413,6 @@ function renderTickets(view) {
 
       html += `<div class="${cardClass}" id="ticket-${t.id}">`;
 
-      // --- REMOVED: The top-right checkbox for pending tickets is now integrated into pending-info ---
-
       html += `<div class="ticket-header">`;
       html += `<span class="ticket-id">${t.id}</span>`;
       html += `<span class="ticket-status ${statusClass}">${statusText}</span>`;
@@ -1113,7 +1437,6 @@ function renderTickets(view) {
       }
       html += `</div>`;
 
-      // *** NEW: Actions row for unbooked tickets (checkbox, delete, book) ***
       if (
         gameState.status === "BOOKING_OPEN" &&
         !t.isBooked &&
@@ -1121,7 +1444,6 @@ function renderTickets(view) {
         !t.isFullHousieWinner
       ) {
         if (activeBookingTicketId === t.id) {
-          // Show inline form instead of actions row
           html += `
             <div class="inline-form">
               <input type="text" id="inline-name-${t.id}" class="input" placeholder="Player name" autofocus>
@@ -1153,7 +1475,6 @@ function renderTickets(view) {
           </div>
         `;
       } else if (t.isPending && !t.isFullHousieWinner) {
-        // *** UPDATED: pending-info with checkbox after Cancel button ***
         html += `
           <div class="pending-info">
             <div class="pending-header">⏳ Pending: ${t.pendingPlayerName}</div>
@@ -1179,7 +1500,7 @@ function renderTickets(view) {
 
       html += `</div>`;
     } else {
-      // Player view (unchanged)
+      // Player view
       let cardClass = "ticket-card";
       let statusClass = "status-available";
       let statusText = "⚡ Available";
@@ -1236,7 +1557,6 @@ function renderTickets(view) {
 
   grid.innerHTML = html;
 
-  // Attach checkbox event listeners for host
   if (isHost) {
     document.querySelectorAll(".unbooked-checkbox").forEach((cb) => {
       cb.addEventListener("change", (e) => {
@@ -1253,7 +1573,6 @@ function renderTickets(view) {
   }
 }
 
-// Host selection toggles
 function toggleHostUnbookedSelection(ticketId) {
   const index = hostSelectedUnbooked.indexOf(ticketId);
   if (index === -1) hostSelectedUnbooked.push(ticketId);
@@ -1268,25 +1587,30 @@ function toggleHostPendingSelection(ticketId) {
   renderHost();
 }
 
-// Host batch action functions
-function deleteSelectedUnbooked() {
+async function deleteSelectedUnbooked() {
   if (hostSelectedUnbooked.length === 0) return;
-  if (confirm(`Delete ${hostSelectedUnbooked.length} unbooked tickets?`)) {
+  if (
+    await showConfirm(`Delete ${hostSelectedUnbooked.length} unbooked tickets?`)
+  ) {
     socket.emit("host:deleteTickets", { ticketIds: hostSelectedUnbooked });
     hostSelectedUnbooked = [];
   }
 }
 
-function deleteAllUnbooked() {
-  if (confirm("Delete ALL unbooked tickets? This cannot be undone.")) {
+async function deleteAllUnbooked() {
+  if (
+    await showConfirm("Delete ALL unbooked tickets? This cannot be undone.")
+  ) {
     socket.emit("host:deleteAllUnbookedTickets");
     hostSelectedUnbooked = [];
   }
 }
 
-function cancelSelectedPending() {
+async function cancelSelectedPending() {
   if (hostSelectedPending.length === 0) return;
-  if (confirm(`Cancel ${hostSelectedPending.length} pending bookings?`)) {
+  if (
+    await showConfirm(`Cancel ${hostSelectedPending.length} pending bookings?`)
+  ) {
     socket.emit("host:cancelPendingTickets", {
       ticketIds: hostSelectedPending,
     });
@@ -1294,30 +1618,33 @@ function cancelSelectedPending() {
   }
 }
 
-function cancelAllPending() {
-  if (confirm("Cancel ALL pending bookings?")) {
+async function cancelAllPending() {
+  if (await showConfirm("Cancel ALL pending bookings?")) {
     socket.emit("host:cancelAllPendingTickets");
     hostSelectedPending = [];
   }
 }
 
-function deleteTicket(ticketId) {
-  if (confirm(`Delete ticket ${ticketId}? This cannot be undone.`)) {
+async function deleteTicket(ticketId) {
+  if (await showConfirm(`Delete ticket ${ticketId}? This cannot be undone.`)) {
     socket.emit("host:deleteTicket", { ticketId });
   }
 }
 
-// Wizard functions (unchanged)
 function renderWizard() {
   const wizardContainer = document.getElementById("wizardContainer");
   let html = "";
 
+  const hasWhatsApp =
+    gameState.whatsappConfig && gameState.whatsappConfig.length > 0;
+
   if (wizardStep === 1) {
     html = `
       <h3>[ STEP 1 ] [ Basic Information ]</h3>
-      <input type="text" id="wizardGameName" class="input" placeholder="Game Name *" value="${wizardConfig.gameName}">
-      <input type="number" id="wizardTicketCount" class="input" value="${wizardConfig.ticketCount}" min="1" max="5000">
-      <button id="wizardNext1" class="btn primary" ${!wizardConfig.gameName ? "disabled" : ""}>Next</button>
+      ${!hasWhatsApp ? '<p style="color:var(--danger)">⚠️ Please configure WhatsApp numbers first.</p>' : ""}
+      <input type="text" id="wizardGameName" class="input" placeholder="Game Name *" value="${wizardConfig.gameName}" ${!hasWhatsApp ? "disabled" : ""}>
+      <input type="number" id="wizardTicketCount" class="input" value="${wizardConfig.ticketCount}" min="1" max="5000" ${!hasWhatsApp ? "disabled" : ""}>
+      <button id="wizardNext1" class="btn primary" ${!wizardConfig.gameName || !hasWhatsApp ? "disabled" : ""}>Next</button>
     `;
   } else if (wizardStep === 2) {
     html = `
@@ -1345,15 +1672,20 @@ function renderWizard() {
   wizardContainer.innerHTML = html;
 
   if (wizardStep === 1) {
-    document.getElementById("wizardGameName").addEventListener("input", (e) => {
-      wizardConfig.gameName = e.target.value;
-      document.getElementById("wizardNext1").disabled = !wizardConfig.gameName;
-    });
-    document
-      .getElementById("wizardTicketCount")
-      .addEventListener("input", (e) => {
+    const gameNameInput = document.getElementById("wizardGameName");
+    if (gameNameInput) {
+      gameNameInput.addEventListener("input", (e) => {
+        wizardConfig.gameName = e.target.value;
+        document.getElementById("wizardNext1").disabled =
+          !wizardConfig.gameName || !hasWhatsApp;
+      });
+    }
+    const ticketCountInput = document.getElementById("wizardTicketCount");
+    if (ticketCountInput) {
+      ticketCountInput.addEventListener("input", (e) => {
         wizardConfig.ticketCount = parseInt(e.target.value) || 50;
       });
+    }
     document.getElementById("wizardNext1").addEventListener("click", () => {
       wizardStep = 2;
       renderWizard();
@@ -1366,7 +1698,7 @@ function renderWizard() {
     });
     document.getElementById("wizardNext2").addEventListener("click", () => {
       if (!validatePrizeCategories()) {
-        alert(
+        showAlert(
           "Please add at least one prize for each selected category, and ensure all prizes have a title and amount > 0.",
         );
         return;
@@ -1550,9 +1882,8 @@ function validatePrizeCategories() {
   return true;
 }
 
-// WhatsApp booking functions
-function requestBookingViaWhatsApp(ticketId) {
-  const playerName = prompt("Enter your name to book this ticket:");
+async function requestBookingViaWhatsApp(ticketId) {
+  const playerName = await showPrompt("Enter your name to book this ticket:");
   if (!playerName || playerName.trim() === "") return;
 
   socket.emit("player:requestBooking", {
@@ -1564,7 +1895,7 @@ function requestBookingViaWhatsApp(ticketId) {
   console.log("WhatsApp number for ticket", ticketId, ":", number);
 
   if (!number) {
-    alert(
+    await showAlert(
       "No WhatsApp number configured for this ticket range. Please contact host.",
     );
     return;
@@ -1583,12 +1914,9 @@ function confirmPending(ticketId) {
 }
 
 function cancelPending(ticketId) {
-  if (confirm("Cancel this pending booking?")) {
-    socket.emit("host:cancelPending", { ticketId });
-  }
+  socket.emit("host:cancelPending", { ticketId });
 }
 
-// Inline booking handlers
 function openInlineBooking(ticketId) {
   activeBookingTicketId = ticketId;
   activeEditTicketId = null;
@@ -1603,7 +1931,7 @@ function confirmInlineBooking(ticketId) {
   const input = document.getElementById(`inline-name-${ticketId}`);
   const name = input ? input.value.trim() : "";
   if (!name) {
-    alert("Please enter a player name");
+    showAlert("Please enter a player name");
     return;
   }
   socket.emit("host:bookTicket", { ticketId, playerName: name });
@@ -1633,7 +1961,7 @@ function confirmInlineEdit(ticketId) {
   const input = document.getElementById(`inline-edit-${ticketId}`);
   const name = input ? input.value.trim() : "";
   if (!name) {
-    alert("Please enter a player name");
+    showAlert("Please enter a player name");
     return;
   }
   socket.emit("host:editBooking", { ticketId, newPlayerName: name });
@@ -1647,12 +1975,9 @@ function cancelInlineEdit() {
 }
 
 function unbookTicket(ticketId) {
-  if (confirm("Release this ticket?")) {
-    socket.emit("host:unbookTicket", { ticketId });
-  }
+  socket.emit("host:unbookTicket", { ticketId });
 }
 
-// Countdown & TTS
 function speak(text) {
   if (!window.speechSynthesis) return;
   if (currentUtterance) window.speechSynthesis.cancel();
@@ -1702,7 +2027,6 @@ function handleCountdownTimer() {
   }, 500);
 }
 
-// Popup & sticky
 function showPopupNumber(number) {
   if (isHostAuthenticated) return;
   const container = document.getElementById("popupContainer");
@@ -1742,7 +2066,6 @@ function updateStatusBadges() {
   });
 }
 
-// *** NEW: Game Over Overlay (replaces banner) ***
 function showGameOverOverlay() {
   const overlay = document.getElementById("gameOverOverlay");
   if (!overlay) return;
@@ -1755,9 +2078,7 @@ function showGameOverOverlay() {
     );
     overlay.classList.add("show");
 
-    // Clear previous timer
     if (gameOverTimer) clearTimeout(gameOverTimer);
-    // Auto-dismiss after 5 seconds
     gameOverTimer = setTimeout(() => {
       overlay.classList.remove("show");
     }, 5000);
@@ -1770,7 +2091,6 @@ function showGameOverOverlay() {
   }
 }
 
-// Modal functions
 function showWinnerModal(ticketId, winTimestamp) {
   const ticket = gameState.tickets.find((t) => t.id === ticketId);
   let winner;
@@ -1869,7 +2189,6 @@ function printPdfFromGrid() {
   window.open(pdfUrl);
 }
 
-// Tab switching
 function switchTab(tabId) {
   document
     .querySelectorAll(".nav-btn")
@@ -1886,7 +2205,6 @@ function switchTab(tabId) {
   currentTab = tabId;
 }
 
-// Event Listeners
 document.addEventListener("DOMContentLoaded", () => {
   loadTheme();
 
@@ -1942,11 +2260,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  document.getElementById("resetGameBtn").addEventListener("click", () => {
-    if (confirm("Reset game? All data will be lost.")) {
-      socket.emit("host:resetGame");
-    }
-  });
+  document
+    .getElementById("resetGameBtn")
+    .addEventListener("click", async () => {
+      if (await showConfirm("Reset game? All data will be lost.")) {
+        socket.emit("host:resetGame");
+      }
+    });
 
   document.getElementById("hostSearchInput").addEventListener("input", (e) => {
     hostSearchTerm = e.target.value;
@@ -1974,7 +2294,6 @@ document.addEventListener("DOMContentLoaded", () => {
     printBookedListBtn.addEventListener("click", printBookedList);
   }
 
-  // *** Winners print button (static) ***
   const printWinnersBtn = document.getElementById("printWinnersPdfBtn");
   if (printWinnersBtn) {
     printWinnersBtn.addEventListener("click", printWinnersPdf);
@@ -1993,7 +2312,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("scheduleGameBtn").addEventListener("click", () => {
     const dateTimeStr = document.getElementById("scheduledStartInput").value;
     if (!dateTimeStr) {
-      alert("Please select a date and time.");
+      showAlert("Please select a date and time.");
       return;
     }
     const scheduledTime = new Date(dateTimeStr).getTime();
@@ -2017,7 +2336,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Close game over overlay manually
   document.getElementById("closeGameOverBtn")?.addEventListener("click", () => {
     document.getElementById("gameOverOverlay").classList.remove("show");
     if (gameOverTimer) {
@@ -2054,14 +2372,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Tab navigation
   document.querySelectorAll(".nav-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       switchTab(e.target.dataset.tab);
     });
   });
 
-  // Player selection bar buttons (now inside modal)
   document
     .getElementById("bookSelectedBtn")
     .addEventListener("click", bookSelectedTickets);
@@ -2069,7 +2385,6 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("clearSelectionBtn")
     .addEventListener("click", clearTicketSelection);
 
-  // Host batch action buttons
   document
     .getElementById("deleteSelectedUnbookedBtn")
     .addEventListener("click", deleteSelectedUnbooked);
@@ -2083,18 +2398,15 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("cancelAllPendingBtn")
     .addEventListener("click", cancelAllPending);
 
-  // Theme toggle
   document.querySelectorAll(".theme-toggle").forEach((btn) => {
     btn.addEventListener("click", toggleTheme);
   });
 
-  // View Available button for player
   const viewAvailableBtn = document.getElementById("viewAvailableBtn");
   if (viewAvailableBtn) {
     viewAvailableBtn.addEventListener("click", showPlayerCompactGrid);
   }
 
-  // Close modal for player compact grid
   document
     .getElementById("closeCompactGridBtn")
     ?.addEventListener("click", () => {

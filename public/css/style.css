@@ -155,7 +155,7 @@ body {
   border: 1px solid var(--border);
 }
 
-/* ---------- GAME OVER OVERLAY (replaces banner) ---------- */
+/* ---------- GAME OVER OVERLAY ---------- */
 .game-over-overlay .modal-content {
   text-align: center;
   max-width: 400px;
@@ -700,7 +700,6 @@ body {
   flex-wrap: wrap;
 }
 
-/* Filter buttons */
 .filter-buttons {
   display: flex;
   gap: 0.3rem;
@@ -737,7 +736,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 0;
   padding: 1rem;
-  position: relative; /* for checkbox positioning */
+  position: relative;
 }
 
 .ticket-card.available {
@@ -753,18 +752,6 @@ body {
 }
 .ticket-card.winner {
   border: 2px solid var(--warning);
-}
-
-.ticket-checkbox {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  z-index: 2;
-}
-.ticket-checkbox input {
-  width: 1.2rem;
-  height: 1.2rem;
-  cursor: pointer;
 }
 
 .ticket-header {
@@ -820,7 +807,6 @@ body {
   border: none;
 }
 
-/* *** NEW: Actions row for unbooked tickets *** */
 .ticket-actions-row {
   display: flex;
   align-items: center;
@@ -849,7 +835,6 @@ body {
   cursor: pointer;
 }
 
-/* --- Updated pending-info with checkbox after Cancel --- */
 .pending-info {
   background: rgba(245, 158, 11, 0.2);
   border-radius: 0;
@@ -875,7 +860,7 @@ body {
   display: flex;
   align-items: center;
   cursor: pointer;
-  margin-left: auto; /* pushes checkbox to the right */
+  margin-left: auto;
 }
 .pending-actions .checkbox-label input[type="checkbox"] {
   width: 1.8rem;
@@ -1022,6 +1007,25 @@ body {
   color: white;
 }
 
+/* ---------- SIMULATION TABLE ---------- */
+.simulation-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+.simulation-table th,
+.simulation-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.simulation-table th {
+  background: var(--surface-light);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
 /* ---------- POPUP ---------- */
 .popup-container {
   position: fixed;
@@ -1102,7 +1106,7 @@ body {
   margin-top: 1rem;
 }
 
-/* ---------- PLAYER COMPACT TICKET GRID (inside modal) ---------- */
+/* ---------- PLAYER COMPACT TICKET GRID ---------- */
 .player-ticket-grid-container {
   max-height: 350px;
   overflow-y: auto;
@@ -1157,7 +1161,7 @@ body {
   color: white;
 }
 
-/* ---------- PLAYER SELECTION BAR (now inside modal) ---------- */
+/* ---------- PLAYER SELECTION BAR ---------- */
 .selection-bar {
   display: flex;
   align-items: center;

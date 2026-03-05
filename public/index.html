@@ -19,8 +19,7 @@
   </head>
   <body>
     <div class="app" id="app">
-      <!-- ===== GAME OVER OVERLAY (replaces banner) ===== -->
-      <!-- ===== GAME OVER OVERLAY (replaces banner) ===== -->
+      <!-- ===== GAME OVER OVERLAY ===== -->
       <div id="gameOverOverlay" class="modal-overlay game-over-overlay">
         <div class="modal-content glass-card">
           <span class="close" id="closeGameOverBtn">&times;</span>
@@ -77,14 +76,20 @@
             </div>
           </div>
 
-          <!-- Host Game Info Card (always visible after game creation) -->
+          <!-- Permanent WhatsApp Config Card -->
+          <div
+            id="whatsappConfigContainer"
+            class="whatsapp-config glass-card"
+          ></div>
+
+          <!-- Host Game Info Card (appears after game creation) -->
           <div
             id="hostGameInfo"
             class="game-info-card glass-card"
             style="display: none"
           ></div>
 
-          <!-- Scheduled Start Time Display (always visible) -->
+          <!-- Scheduled Start Time Display -->
           <div id="hostScheduledTime" class="scheduled-time-container"></div>
 
           <!-- Stats (always visible) -->
@@ -118,10 +123,9 @@
 
           <!-- Navigation Bar (visible when game exists) -->
           <div id="hostNavBar" class="host-nav" style="display: none">
-            <button class="nav-btn active" data-tab="whatsapp">
-              📱 WhatsApp
+            <button class="nav-btn active" data-tab="draworder">
+              🎲 Draw Order
             </button>
-            <button class="nav-btn" data-tab="draworder">🎲 Draw Order</button>
             <button class="nav-btn" data-tab="gamecontrol">
               🎮 Game Control
             </button>
@@ -129,20 +133,13 @@
 
           <!-- Tab Content Container (visible when game exists) -->
           <div id="tabContent" class="tab-content" style="display: none">
-            <!-- WhatsApp Config Tab -->
-            <div id="tab-whatsapp" class="tab-pane active">
-              <div
-                id="whatsappConfigContainer"
-                class="whatsapp-config glass-card"
-              ></div>
-            </div>
             <!-- Custom Draw Order Tab -->
-            <div id="tab-draworder" class="tab-pane">
+            <div id="tab-draworder" class="tab-pane active">
               <div id="customDrawOrderContainer"></div>
             </div>
             <!-- Game Control Tab -->
             <div id="tab-gamecontrol" class="tab-pane">
-              <!-- Game Settings Container (inside Game Control) -->
+              <!-- Game Settings Container -->
               <div id="gameSettingsContainer"></div>
 
               <!-- Active Game Controls -->
@@ -239,7 +236,7 @@
             <span>🎲 Current:</span> <span id="hostCurrentNumberValue">--</span>
           </div>
 
-          <!-- Winners Section (always visible) -->
+          <!-- Winners Section -->
           <div
             id="hostWinnersSection"
             class="winners-section glass-card"
@@ -247,7 +244,6 @@
           >
             <div class="winners-header">
               <h2>🏆 Winners</h2>
-              <!-- *** NEW: static print button always visible in header *** -->
               <button
                 id="printWinnersPdfBtn"
                 class="btn primary small"
@@ -264,7 +260,6 @@
 
           <!-- Ticket Management -->
           <div class="ticket-toolbar">
-            <!-- Filter Buttons Container -->
             <div id="hostFilterButtons"></div>
             <input
               type="text"
@@ -410,6 +405,64 @@
 
       <!-- ===== MODALS ===== -->
 
+      <!-- Alert Modal -->
+      <div id="alertModal" class="modal-overlay">
+        <div class="modal-content glass-card">
+          <span class="close">&times;</span>
+          <h3>⚠️ Alert</h3>
+          <p id="alertMessage"></p>
+          <button id="alertOkBtn" class="btn primary">OK</button>
+        </div>
+      </div>
+
+      <!-- Confirm Modal -->
+      <div id="confirmModal" class="modal-overlay">
+        <div class="modal-content glass-card">
+          <span class="close">&times;</span>
+          <h3>🤔 Confirm</h3>
+          <p id="confirmMessage"></p>
+          <div class="button-group">
+            <button id="confirmYesBtn" class="btn success">Yes</button>
+            <button id="confirmNoBtn" class="btn danger">No</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prompt Modal -->
+      <div id="promptModal" class="modal-overlay">
+        <div class="modal-content glass-card">
+          <span class="close">&times;</span>
+          <h3>📝 Input</h3>
+          <p id="promptMessage"></p>
+          <input type="text" id="promptInput" class="input" />
+          <div class="button-group" style="margin-top: 1rem">
+            <button id="promptOkBtn" class="btn success">OK</button>
+            <button id="promptCancelBtn" class="btn danger">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulation Results Modal -->
+      <div id="simulationModal" class="modal-overlay">
+        <div class="modal-content glass-card" style="max-width: 800px">
+          <span class="close">&times;</span>
+          <h3>🎲 Simulation Results</h3>
+          <table class="simulation-table">
+            <thead>
+              <tr>
+                <th>Pattern</th>
+                <th>Prize</th>
+                <th>Amount</th>
+                <th>Ticket</th>
+                <th>Player</th>
+                <th>Call #</th>
+              </tr>
+            </thead>
+            <tbody id="simulationResultsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Winner Modal -->
       <div id="winnerModal" class="modal-overlay">
         <div class="modal-content glass-card">
@@ -434,7 +487,7 @@
         </div>
       </div>
 
-      <!-- Booked List Modal (updated with header print button) -->
+      <!-- Booked List Modal -->
       <div id="bookedListModal" class="modal-overlay">
         <div class="modal-content glass-card">
           <div
@@ -463,11 +516,10 @@
             </thead>
             <tbody id="bookedListBody"></tbody>
           </table>
-          <!-- Removed bottom button group -->
         </div>
       </div>
 
-      <!-- Player Compact Grid Modal (with selection bar inside) -->
+      <!-- Player Compact Grid Modal -->
       <div id="playerCompactGridModal" class="modal-overlay">
         <div class="modal-content glass-card">
           <span class="close" id="closeCompactGridBtn">&times;</span>
