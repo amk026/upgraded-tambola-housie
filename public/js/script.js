@@ -17,7 +17,7 @@ let gameState = {
   currentPrizeRank: 1,
   gameEndReason: null,
   gameName: "",
-  visibleToPlayers: true,
+  visibleToPlayers: false,
   prizeCategories: [],
   scheduledStartTime: null,
   countdownPaused: false,
@@ -56,17 +56,32 @@ let currentTab = "draworder";
 let selectedTickets = [];
 
 // Host selected tickets for batch operations
-let hostSelectedUnbooked = [];
-let hostSelectedPending = [];
+let hostSelectedUnbooked = []; // IDs of unbooked tickets selected
+let hostSelectedPending = []; // IDs of pending tickets selected
 
 // Game over overlay timer
 let gameOverTimer = null;
 
-// ---------- Pattern Checkers (copied from server for simulation) ----------
+// Collapsible states
+let hostInfoCollapsed = false;
+let playerInfoCollapsed = false;
+let whatsappCollapsed = false;
+let tabContentCollapsed = false; // New: tracks if tab content is collapsed
+
+// Flag to differentiate between set and clear for custom draw order
+let clearingDrawOrder = false;
+
+// ---------- Pattern Checkers (updated with Early Seven) ----------
 function checkEarlyFive(ticketNumbers, calledNumbers) {
   const flat = ticketNumbers.flat().filter((n) => n !== 0);
   const markedCount = flat.filter((n) => calledNumbers.includes(n)).length;
   return markedCount >= 5;
+}
+
+function checkEarlySeven(ticketNumbers, calledNumbers) {
+  const flat = ticketNumbers.flat().filter((n) => n !== 0);
+  const markedCount = flat.filter((n) => calledNumbers.includes(n)).length;
+  return markedCount >= 7;
 }
 
 function checkTopLine(ticketNumbers, calledNumbers) {
@@ -111,6 +126,7 @@ function checkCorners(ticketNumbers, calledNumbers) {
 
 const patternCheckers = {
   "Early Five": checkEarlyFive,
+  "Early Seven": checkEarlySeven,
   "Top Line": checkTopLine,
   "Middle Line": checkMiddleLine,
   "Bottom Line": checkBottomLine,
@@ -118,10 +134,7 @@ const patternCheckers = {
   Corners: checkCorners,
 };
 
-// ---------- Custom Modal Functions (replace alert/confirm/prompt) ----------
-let modalResolve = null;
-let modalReject = null;
-
+// ---------- Custom Modal Functions (unchanged) ----------
 function showAlert(message) {
   return new Promise((resolve) => {
     document.getElementById("alertMessage").textContent = message;
@@ -208,7 +221,7 @@ function showPrompt(message, defaultValue = "") {
   });
 }
 
-// Helper to replace all native alerts
+// Replace native alerts
 window.alert = async function (msg) {
   await showAlert(msg);
 };
@@ -219,7 +232,7 @@ window.prompt = async function (msg, def) {
   return await showPrompt(msg, def);
 };
 
-// ---------- Helper: Get WhatsApp number for a ticket (with primary fallback) ----------
+// ---------- Helper: Get WhatsApp number for a ticket ----------
 function getWhatsAppNumberForTicket(ticketId) {
   const match = ticketId.match(/T-(\d+)/);
   if (!match) return null;
@@ -233,7 +246,6 @@ function getWhatsAppNumberForTicket(ticketId) {
     "against config:",
     config,
   );
-  // First, try to find a matching range
   for (const range of config) {
     if (num >= range.start && num <= range.end) {
       const cleanNumber = range.number.replace(/\D/g, "");
@@ -353,7 +365,13 @@ socket.on("host:error", async (data) => {
 });
 
 socket.on("host:customDrawOrderSet", () => {
-  showAlert("Custom draw order set successfully.");
+  // Differentiate between set and clear
+  if (clearingDrawOrder) {
+    showAlert("Custom draw order cleared successfully.");
+    clearingDrawOrder = false;
+  } else {
+    showAlert("Custom draw order set successfully.");
+  }
 });
 
 socket.on("host:settingsUpdated", () => {
@@ -416,14 +434,16 @@ function renderHost() {
   renderHostGameInfo();
   renderScheduledTime("host");
 
-  // Always show WhatsApp config (even without game)
+  // Always show WhatsApp config
   renderWhatsAppConfig();
 
   if (gameState.status !== "NO_ACTIVE_GAME") {
     document.getElementById("hostNavBar").style.display = "flex";
-    document.getElementById("tabContent").style.display = "block";
+    // Apply collapsed state to tab content
+    document.getElementById("tabContent").style.display = tabContentCollapsed
+      ? "none"
+      : "block";
     renderCustomDrawOrder();
-    renderGameSettings(); // includes both settings
     updateGameControlVisibility();
   } else {
     document.getElementById("hostNavBar").style.display = "none";
@@ -441,10 +461,53 @@ function renderHost() {
     document.getElementById("createGameWizard").style.display = "none";
   }
 
-  // Show/hide batch actions based on status
+  // Batch actions: show only relevant buttons
   const batchActions = document.getElementById("hostBatchActions");
   if (gameState.status === "BOOKING_OPEN") {
     batchActions.style.display = "flex";
+
+    // Delete selected unbooked button
+    const deleteBtn = document.getElementById("deleteSelectedUnbookedBtn");
+    if (hostFilter === "available" && hostSelectedUnbooked.length > 0) {
+      deleteBtn.style.display = "inline-block";
+      deleteBtn.textContent = `🗑️ Delete Selected (${hostSelectedUnbooked.length})`;
+    } else {
+      deleteBtn.style.display = "none";
+    }
+
+    // Cancel selected pending button
+    const cancelBtn = document.getElementById("cancelSelectedPendingBtn");
+    if (hostFilter === "pending" && hostSelectedPending.length > 0) {
+      cancelBtn.style.display = "inline-block";
+      cancelBtn.textContent = `❌ Cancel Selected (${hostSelectedPending.length})`;
+    } else {
+      cancelBtn.style.display = "none";
+    }
+
+    // Select All button: show only if at least one ticket is selected
+    const selectAllBtn = document.getElementById("selectAllBtn");
+    if (
+      (hostFilter === "available" && hostSelectedUnbooked.length > 0) ||
+      (hostFilter === "pending" && hostSelectedPending.length > 0)
+    ) {
+      selectAllBtn.style.display = "inline-block";
+      // Determine if all visible are selected
+      let allSelected = false;
+      if (hostFilter === "available") {
+        const visible = gameState.tickets.filter(
+          (t) => !t.isBooked && !t.isPending && !t.isFullHousieWinner,
+        );
+        allSelected = visible.every((t) => hostSelectedUnbooked.includes(t.id));
+      } else if (hostFilter === "pending") {
+        const visible = gameState.tickets.filter(
+          (t) => t.isPending && !t.isFullHousieWinner,
+        );
+        allSelected = visible.every((t) => hostSelectedPending.includes(t.id));
+      }
+      selectAllBtn.textContent = allSelected ? "Deselect All" : "Select All";
+    } else {
+      selectAllBtn.style.display = "none";
+    }
   } else {
     batchActions.style.display = "none";
   }
@@ -547,6 +610,9 @@ function renderHostFilters(total, booked, pending, available) {
   document.querySelectorAll(".filter-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       hostFilter = e.target.dataset.filter;
+      // Clear selections when switching filter
+      hostSelectedUnbooked = [];
+      hostSelectedPending = [];
       renderHost();
     });
   });
@@ -581,11 +647,12 @@ async function openBookedListModal() {
   if (!tbody) return;
 
   const bookedTickets = gameState.tickets.filter(
-    (t) => t.isBooked && !t.isFullHousieWinner,
+    (t) => (t.isBooked || t.isPending) && !t.isFullHousieWinner,
   );
   let html = "";
   bookedTickets.forEach((t) => {
-    html += `<tr><td>${t.id}</td><td>${t.bookedBy || "—"}</td></tr>`;
+    const status = t.isBooked ? "Booked" : "Pending";
+    html += `<tr><td>${t.id}</td><td>${t.bookedBy || t.pendingPlayerName || "—"}</td><td>${status}</td></tr>`;
   });
   tbody.innerHTML = html;
   modal.classList.add("show");
@@ -599,11 +666,15 @@ function printBookedList() {
   doc.text("Booked Tickets List", 105, 15, { align: "center" });
 
   const bookedTickets = gameState.tickets.filter(
-    (t) => t.isBooked && !t.isFullHousieWinner,
+    (t) => (t.isBooked || t.isPending) && !t.isFullHousieWinner,
   );
 
-  const headers = [["Ticket ID", "Player Name"]];
-  const data = bookedTickets.map((t) => [t.id, t.bookedBy || "—"]);
+  const headers = [["Ticket ID", "Player Name", "Status"]];
+  const data = bookedTickets.map((t) => [
+    t.id,
+    t.bookedBy || t.pendingPlayerName || "—",
+    t.isBooked ? "Booked" : "Pending",
+  ]);
 
   doc.autoTable({
     head: headers,
@@ -624,6 +695,7 @@ function printBookedList() {
     columnStyles: {
       0: { cellWidth: 40 },
       1: { cellWidth: "auto" },
+      2: { cellWidth: 30 },
     },
   });
 
@@ -640,13 +712,12 @@ function printWinnersPdf() {
   doc.text("Winners List", 105, 15, { align: "center" });
 
   const winners = gameState.winners || [];
-  const headers = [["Pattern", "Prize", "Player", "Ticket", "Time"]];
+  const headers = [["Pattern", "Prize", "Player", "Ticket"]];
   const data = winners.map((w) => [
     w.pattern,
     w.prizeTitle,
     w.playerName || "—",
     w.ticketId,
-    w.winTime || "",
   ]);
 
   doc.autoTable({
@@ -675,7 +746,13 @@ function printWinnersPdf() {
 function renderCustomDrawOrder() {
   const container = document.getElementById("customDrawOrderContainer");
   if (!container) return;
-  let html = `
+
+  const settingsHtml = `
+    <div id="gameSettingsContainer"></div>
+  `;
+  let html = settingsHtml;
+
+  html += `
     <div class="custom-draw-section glass-card" style="margin-bottom:1.5rem;">
       <h3>🎲 Custom Draw Order</h3>
       <p>Enter the sequence of numbers 1–90 (comma separated) that will be called.</p>
@@ -689,6 +766,8 @@ function renderCustomDrawOrder() {
     </div>
   `;
   container.innerHTML = html;
+
+  renderGameSettings();
 
   document.getElementById("setCustomDrawBtn").addEventListener("click", () => {
     const input = document.getElementById("customDrawInput").value.trim();
@@ -716,6 +795,8 @@ function renderCustomDrawOrder() {
         "Numbers must be between 1 and 90.";
       return;
     }
+    // Ensure clear flag is off before emitting set
+    clearingDrawOrder = false;
     socket.emit("host:setCustomDrawOrder", { sequence: numbers });
     document.getElementById("customDrawStatus").textContent =
       "✅ Custom order set.";
@@ -723,11 +804,15 @@ function renderCustomDrawOrder() {
 
   document
     .getElementById("clearCustomDrawBtn")
-    .addEventListener("click", () => {
+    .addEventListener("click", async () => {
       document.getElementById("customDrawInput").value = "";
+      // Set flag so we know this was a clear operation
+      clearingDrawOrder = true;
       socket.emit("host:setCustomDrawOrder", { sequence: [] });
       document.getElementById("customDrawStatus").textContent =
-        "Custom order cleared.";
+        "✅ Custom order cleared.";
+      // Also show alert immediately? The socket response will trigger the alert,
+      // but we want it to say "cleared". The flag ensures that.
     });
 
   document
@@ -737,7 +822,6 @@ function renderCustomDrawOrder() {
 
 // ---------- SIMULATION FUNCTION ----------
 function simulateGame() {
-  // Get draw order from textarea
   const input = document.getElementById("customDrawInput").value.trim();
   let drawSequence;
   if (input) {
@@ -755,7 +839,6 @@ function simulateGame() {
     }
     drawSequence = numbers;
   } else {
-    // Generate random and fill textarea
     const nums = Array.from({ length: 90 }, (_, i) => i + 1);
     for (let i = nums.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -765,12 +848,10 @@ function simulateGame() {
     document.getElementById("customDrawInput").value = nums.join(", ");
   }
 
-  // Clone gameState to simulate
-  const simTickets = gameState.tickets.map((t) => ({ ...t })); // shallow copy, numbers array is fine
+  const simTickets = gameState.tickets.map((t) => ({ ...t }));
   const simWinners = [];
-  const prizeCategories = JSON.parse(JSON.stringify(gameState.prizeCategories)); // deep copy with awarded flags
+  const prizeCategories = JSON.parse(JSON.stringify(gameState.prizeCategories));
 
-  // Reset prize awarded flags
   prizeCategories.forEach((cat) =>
     cat.prizes.forEach((p) => (p.awarded = false)),
   );
@@ -779,22 +860,18 @@ function simulateGame() {
   const allowMultipleWinsPerTicket = gameState.allowMultipleWinsPerTicket;
   const allowMultipleWinnersPerPrize = gameState.allowMultipleWinnersPerPrize;
 
-  // Results storage: for each prize, store winner info
   const results = [];
 
-  // Simulate calling numbers in order
   for (let idx = 0; idx < drawSequence.length; idx++) {
     const number = drawSequence[idx];
     calledNumbers.push(number);
 
-    // Check each category for new winners
     for (const category of prizeCategories) {
       const pattern = category.name;
       const checker = patternCheckers[pattern];
       if (!checker) continue;
 
-      // Eligible tickets: ALL tickets (including unbooked)
-      let eligibleTickets = simTickets; // <--- CHANGED: removed .filter(t => t.isBooked)
+      let eligibleTickets = simTickets;
 
       if (!allowMultipleWinsPerTicket) {
         eligibleTickets = eligibleTickets.filter(
@@ -815,7 +892,6 @@ function simulateGame() {
 
       if (newlyCompleted.length === 0) continue;
 
-      // Find first unawarded prize in this category
       const prize = category.prizes.find((p) => !p.awarded);
       if (!prize) continue;
 
@@ -826,13 +902,12 @@ function simulateGame() {
             prizeTitle: prize.title,
             prizeAmount: prize.amount,
             ticketId: ticket.id,
-            playerName: ticket.bookedBy, // may be undefined/null
+            playerName: ticket.bookedBy,
             callNumber: number,
             callIndex: idx + 1,
           });
         });
         prize.awarded = true;
-        // Record for display
         results.push({
           pattern,
           prizeTitle: prize.title,
@@ -872,14 +947,12 @@ function simulateGame() {
       }
     }
 
-    // Stop if all prizes awarded
     const allAwarded = prizeCategories.every((cat) =>
       cat.prizes.every((p) => p.awarded),
     );
     if (allAwarded) break;
   }
 
-  // Show results in modal
   showSimulationResults(results, drawSequence);
 }
 
@@ -907,22 +980,27 @@ function showSimulationResults(results, drawSequence) {
   modal.classList.add("show");
 }
 
-// WhatsApp configuration (now always visible)
+// WhatsApp configuration
 function renderWhatsAppConfig() {
   const container = document.getElementById("whatsappConfigContainer");
   if (!container) return;
 
   let html = `
-    <h3>📱 WhatsApp Numbers</h3>
-    <p>Assign WhatsApp numbers to ticket ranges (e.g., 1-50, 51-100). Mark one as primary for multi‑ticket bookings.</p>
-    <div id="whatsappRangesList"></div>
-    <div class="whatsapp-add-range">
-      <input type="number" id="newRangeStart" class="input" placeholder="Start" min="1">
-      <input type="number" id="newRangeEnd" class="input" placeholder="End" min="1">
-      <input type="text" id="newRangeNumber" class="input" placeholder="WhatsApp number (with country code)">
-      <button id="addWhatsAppRangeBtn" class="btn success">Add Range</button>
+    <div class="collapsible-header" onclick="toggleWhatsappCollapse()">
+      <h3>📱 WhatsApp Numbers</h3>
+      <span class="collapse-icon">${whatsappCollapsed ? "▶" : "▼"}</span>
     </div>
-    <button id="saveWhatsAppConfigBtn" class="btn primary">Save Configuration</button>
+    <div id="whatsappContent" class="collapsible-content ${whatsappCollapsed ? "collapsed" : ""}">
+      <p>Assign WhatsApp numbers to ticket ranges (e.g., 1->50, 51->100). Mark one as primary for multi‑ticket bookings. Ranges must be between 1 and 1000.</p>
+      <div id="whatsappRangesList"></div>
+      <div class="whatsapp-add-range">
+        <input type="number" id="newRangeStart" class="input" placeholder="Start" min="1" max="1000">
+        <input type="number" id="newRangeEnd" class="input" placeholder="End" min="1" max="1000">
+        <input type="text" id="newRangeNumber" class="input" placeholder="WhatsApp number (with country code)">
+        <button id="addWhatsAppRangeBtn" class="btn success">Add Range</button>
+      </div>
+      <button id="saveWhatsAppConfigBtn" class="btn primary">Save Configuration</button>
+    </div>
   `;
   container.innerHTML = html;
 
@@ -932,9 +1010,9 @@ function renderWhatsAppConfig() {
     (gameState.whatsappConfig || []).forEach((range, index) => {
       listHtml += `
         <div class="whatsapp-range-item">
-          <span>${range.start} - ${range.end} → ${range.number}</span>
+          <span>${range.start} -> ${range.end} => [${range.number}]</span>
           <label>
-            <input type="radio" name="primaryWhatsApp" data-index="${index}" ${range.primary ? "checked" : ""}> Primary
+            <input type="radio" name="primaryWhatsApp" data-index="${index}" ${range.primary ? "checked" : ""}> Primary 
           </label>
           <button class="btn danger small" onclick="removeWhatsAppRange(${index})">✖</button>
         </div>
@@ -976,6 +1054,10 @@ function renderWhatsAppConfig() {
         showAlert("Please fill all fields.");
         return;
       }
+      if (start < 1 || start > 1000 || end < 1 || end > 1000) {
+        showAlert("Start and end must be between 1 and 1000.");
+        return;
+      }
       if (start > end) {
         showAlert("Start must be less than or equal to end.");
         return;
@@ -998,6 +1080,11 @@ function renderWhatsAppConfig() {
       showAlert("WhatsApp configuration saved.");
     }
   });
+}
+
+function toggleWhatsappCollapse() {
+  whatsappCollapsed = !whatsappCollapsed;
+  renderWhatsAppConfig();
 }
 
 function renderPlayer() {
@@ -1053,7 +1140,9 @@ function renderPlayer() {
   const viewAvailableBtn = document.getElementById("viewAvailableBtn");
   if (viewAvailableBtn) {
     viewAvailableBtn.style.display =
-      gameState.status === "BOOKING_OPEN" ? "block" : "none";
+      gameState.status === "BOOKING_OPEN" && gameState.visibleToPlayers
+        ? "block"
+        : "none";
   }
 
   if (gameState.status === "COUNTDOWN" && gameState.countdownEndTime) {
@@ -1089,7 +1178,6 @@ function renderCompactGridContent() {
   html += "</div>";
   container.innerHTML = html;
 
-  // Attach click handlers
   container.querySelectorAll(".grid-cell").forEach((cell) => {
     cell.addEventListener("click", (e) => {
       const tid = e.target.dataset.ticketId;
@@ -1116,7 +1204,6 @@ function showPlayerCompactGrid() {
   modal.classList.add("show");
 }
 
-// Player selection functions
 function toggleTicketSelection(ticketId) {
   const index = selectedTickets.indexOf(ticketId);
   if (index === -1) {
@@ -1124,13 +1211,11 @@ function toggleTicketSelection(ticketId) {
   } else {
     selectedTickets.splice(index, 1);
   }
-  // Update selection bar inside modal
   document.getElementById("selectedCount").textContent = selectedTickets.length;
 }
 
 function clearTicketSelection() {
   selectedTickets = [];
-  // If the modal is open, update the grid to remove highlights
   const modal = document.getElementById("playerCompactGridModal");
   if (modal.classList.contains("show")) {
     renderCompactGridContent();
@@ -1139,7 +1224,6 @@ function clearTicketSelection() {
 }
 
 async function bookSelectedTickets() {
-  // Close the modal immediately
   document.getElementById("playerCompactGridModal").classList.remove("show");
 
   if (selectedTickets.length === 0) {
@@ -1156,7 +1240,6 @@ async function bookSelectedTickets() {
     });
   });
 
-  // Determine WhatsApp number(s)
   const numbers = selectedTickets
     .map((tid) => getWhatsAppNumberForTicket(tid))
     .filter(Boolean);
@@ -1183,7 +1266,6 @@ async function bookSelectedTickets() {
   const url = `https://wa.me/${targetNumber}?text=${message}`;
   window.open(url, "_blank");
 
-  // Clear selection without re‑opening the modal
   selectedTickets = [];
   document.getElementById("selectedCount").textContent = 0;
 }
@@ -1195,8 +1277,14 @@ function renderHostGameInfo() {
     container.style.display = "none";
     return;
   }
-  let html = `<h3>${gameState.gameName || "Tambola Game"}</h3>`;
-  html += `<div class="prize-categories">`;
+  let html = `
+    <div class="collapsible-header" onclick="toggleHostInfoCollapse()">
+      <h3>${gameState.gameName || "Tambola Game"}</h3>
+      <span class="collapse-icon">${hostInfoCollapsed ? "▶" : "▼"}</span>
+    </div>
+    <div id="hostInfoContent" class="collapsible-content ${hostInfoCollapsed ? "collapsed" : ""}">
+      <div class="prize-categories">
+  `;
   gameState.prizeCategories.forEach((cat) => {
     html += `<div class="prize-category">`;
     html += `<h4>${cat.name}</h4>`;
@@ -1210,9 +1298,25 @@ function renderHostGameInfo() {
     });
     html += `</div>`;
   });
-  html += `</div>`;
+  html += `
+      </div>
+    </div>
+    <div style="text-align: center; margin: 1rem 0;">
+      <button id="releaseTicketsBtn" class="btn success" ${gameState.visibleToPlayers ? "disabled" : ""}>📢 Release Tickets to Players</button>
+    </div>
+  `;
   container.innerHTML = html;
   container.style.display = "block";
+
+  document.getElementById("releaseTicketsBtn").addEventListener("click", () => {
+    socket.emit("host:releaseTickets");
+    document.getElementById("releaseTicketsBtn").disabled = true;
+  });
+}
+
+function toggleHostInfoCollapse() {
+  hostInfoCollapsed = !hostInfoCollapsed;
+  renderHostGameInfo();
 }
 
 function renderPlayerPrizeInfo() {
@@ -1222,8 +1326,14 @@ function renderPlayerPrizeInfo() {
     container.style.display = "none";
     return;
   }
-  let html = `<h3>${gameState.gameName || "Tambola Game"}</h3>`;
-  html += `<div class="prize-categories">`;
+  let html = `
+    <div class="collapsible-header" onclick="togglePlayerInfoCollapse()">
+      <h3>${gameState.gameName || "Tambola Game"}</h3>
+      <span class="collapse-icon">${playerInfoCollapsed ? "▶" : "▼"}</span>
+    </div>
+    <div id="playerInfoContent" class="collapsible-content ${playerInfoCollapsed ? "collapsed" : ""}">
+      <div class="prize-categories">
+  `;
   gameState.prizeCategories.forEach((cat) => {
     html += `<div class="prize-category">`;
     html += `<h4>${cat.name}</h4>`;
@@ -1237,9 +1347,17 @@ function renderPlayerPrizeInfo() {
     });
     html += `</div>`;
   });
-  html += `</div>`;
+  html += `
+      </div>
+    </div>
+  `;
   container.innerHTML = html;
   container.style.display = "block";
+}
+
+function togglePlayerInfoCollapse() {
+  playerInfoCollapsed = !playerInfoCollapsed;
+  renderPlayerPrizeInfo();
 }
 
 function renderCalledNumbers(view) {
@@ -1304,7 +1422,6 @@ function renderWinners(view) {
           <div class="winner-order">${w.pattern} - ${w.prizeTitle}</div>
           <div class="winner-name">${w.playerName || "Unknown"}</div>
           <div class="winner-ticket">${w.ticketId}</div>
-          <div class="winner-time">${w.winTime || ""}</div>
         </div>
         <div class="winner-actions">
           <button class="view-btn" onclick="showWinnerModal('${w.ticketId}', ${w.winTimestamp})">👁️ View</button>
@@ -1332,6 +1449,7 @@ function renderTickets(view) {
   const noResults = noResultsId ? document.getElementById(noResultsId) : null;
   if (!grid) return;
 
+  // Build map of called numbers at win for each ticket (used only in modal, not for grid)
   const winnerCalledMap = {};
   gameState.winners.forEach((winner) => {
     winnerCalledMap[winner.ticketId] = winner.calledNumbersAtWin || [];
@@ -1361,11 +1479,18 @@ function renderTickets(view) {
         (t.pendingPlayerName &&
           t.pendingPlayerName.toLowerCase().includes(term)),
     );
-  } else {
-    // Player view: show ALL tickets (no hiding)
-    if (!isHost) {
-      // Already all tickets, do nothing
-    }
+  }
+
+  if (
+    !isHost &&
+    gameState.status === "BOOKING_OPEN" &&
+    !gameState.visibleToPlayers
+  ) {
+    grid.innerHTML =
+      '<div class="no-results">The system is creating tickets and will be released soon.</div>'; //original text: Tickets not yet released by host
+    grid.style.display = "flex"; // <-- ADD THIS LINE
+    if (noResults) noResults.style.display = "none";
+    return;
   }
 
   if (filtered.length === 0) {
@@ -1411,6 +1536,14 @@ function renderTickets(view) {
         statusClass = "status-available";
       }
 
+      // Add selected class if in selection array (full card highlight)
+      if (
+        (hostFilter === "available" && hostSelectedUnbooked.includes(t.id)) ||
+        (hostFilter === "pending" && hostSelectedPending.includes(t.id))
+      ) {
+        cardClass += " selected";
+      }
+
       html += `<div class="${cardClass}" id="ticket-${t.id}">`;
 
       html += `<div class="ticket-header">`;
@@ -1418,12 +1551,11 @@ function renderTickets(view) {
       html += `<span class="ticket-status ${statusClass}">${statusText}</span>`;
       html += `</div>`;
 
-      const isWinner = winnerCalledMap.hasOwnProperty(t.id);
-      const highlightSet = isWinner
-        ? winnerCalledMap[t.id]
-        : gameState.calledNumbers;
+      // Always use live called numbers for highlighting
+      const highlightSet = gameState.calledNumbers;
 
-      html += `<div class="ticket-numbers">`;
+      // Add clickable numbers grid with data attribute for selection
+      html += `<div class="ticket-numbers clickable" data-ticket-id="${t.id}" onclick="hostTicketClick('${t.id}', event)">`;
       for (let r = 0; r < 3; r++) {
         for (let c = 0; c < 9; c++) {
           const num = t.numbers[r][c];
@@ -1456,11 +1588,8 @@ function renderTickets(view) {
         } else {
           html += `
             <div class="ticket-actions-row">
-              <label class="checkbox-label">
-                <input type="checkbox" class="unbooked-checkbox" data-id="${t.id}" ${hostSelectedUnbooked.includes(t.id) ? "checked" : ""}>
-              </label>
-              <button class="btn danger small" onclick="deleteTicket('${t.id}')">🗑️ Delete</button>
               <button class="btn secondary small" onclick="openInlineBooking('${t.id}')">📌 Book</button>
+              <button class="btn danger small" onclick="deleteTicket('${t.id}')">🗑️ Delete</button>
             </div>
           `;
         }
@@ -1483,9 +1612,6 @@ function renderTickets(view) {
                 <button class="btn success" onclick="confirmPending('${t.id}')">✓ Confirm</button>
                 <button class="btn danger" onclick="cancelPending('${t.id}')">✗ Cancel</button>
               </div>
-              <label class="checkbox-label">
-                <input type="checkbox" class="pending-checkbox" data-id="${t.id}" ${hostSelectedPending.includes(t.id) ? "checked" : ""}>
-              </label>
             </div>
           </div>
         `;
@@ -1501,6 +1627,8 @@ function renderTickets(view) {
       html += `</div>`;
     } else {
       // Player view
+      // (already handled "not released" condition above)
+
       let cardClass = "ticket-card";
       let statusClass = "status-available";
       let statusText = "⚡ Available";
@@ -1523,10 +1651,8 @@ function renderTickets(view) {
       html += `<div class="ticket-header"><span class="ticket-id">${t.id}</span>`;
       html += `<span class="ticket-status ${statusClass}">${statusText}</span></div>`;
 
-      const isWinner = winningTicketIds.has(t.id);
-      const highlightSet = isWinner
-        ? winnerCalledMap[t.id] || []
-        : gameState.calledNumbers;
+      // Always use live called numbers for highlighting
+      const highlightSet = gameState.calledNumbers;
 
       html += `<div class="ticket-numbers">`;
       for (let r = 0; r < 3; r++) {
@@ -1556,34 +1682,75 @@ function renderTickets(view) {
   });
 
   grid.innerHTML = html;
-
-  if (isHost) {
-    document.querySelectorAll(".unbooked-checkbox").forEach((cb) => {
-      cb.addEventListener("change", (e) => {
-        const tid = e.target.dataset.id;
-        toggleHostUnbookedSelection(tid);
-      });
-    });
-    document.querySelectorAll(".pending-checkbox").forEach((cb) => {
-      cb.addEventListener("change", (e) => {
-        const tid = e.target.dataset.id;
-        toggleHostPendingSelection(tid);
-      });
-    });
-  }
 }
 
-function toggleHostUnbookedSelection(ticketId) {
-  const index = hostSelectedUnbooked.indexOf(ticketId);
-  if (index === -1) hostSelectedUnbooked.push(ticketId);
-  else hostSelectedUnbooked.splice(index, 1);
+// Host click on ticket numbers grid to select/deselect
+function hostTicketClick(ticketId, event) {
+  // Stop propagation so that clicks on buttons don't trigger selection
+  event.stopPropagation();
+  if (gameState.status !== "BOOKING_OPEN") return;
+  const ticket = gameState.tickets.find((t) => t.id === ticketId);
+  if (!ticket) return;
+
+  if (
+    hostFilter === "available" &&
+    !ticket.isBooked &&
+    !ticket.isPending &&
+    !ticket.isFullHousieWinner
+  ) {
+    const idx = hostSelectedUnbooked.indexOf(ticketId);
+    if (idx === -1) hostSelectedUnbooked.push(ticketId);
+    else hostSelectedUnbooked.splice(idx, 1);
+  } else if (
+    hostFilter === "pending" &&
+    ticket.isPending &&
+    !ticket.isFullHousieWinner
+  ) {
+    const idx = hostSelectedPending.indexOf(ticketId);
+    if (idx === -1) hostSelectedPending.push(ticketId);
+    else hostSelectedPending.splice(idx, 1);
+  }
   renderHost();
 }
 
-function toggleHostPendingSelection(ticketId) {
-  const index = hostSelectedPending.indexOf(ticketId);
-  if (index === -1) hostSelectedPending.push(ticketId);
-  else hostSelectedPending.splice(index, 1);
+// Select/Deselect all visible tickets in current filter (toggle)
+function selectAllVisible() {
+  if (hostFilter === "available") {
+    const visible = gameState.tickets.filter(
+      (t) => !t.isBooked && !t.isPending && !t.isFullHousieWinner,
+    );
+    const visibleIds = visible.map((t) => t.id);
+    // If all visible are selected, deselect them; otherwise select all
+    const allSelected = visibleIds.every((id) =>
+      hostSelectedUnbooked.includes(id),
+    );
+    if (allSelected) {
+      hostSelectedUnbooked = hostSelectedUnbooked.filter(
+        (id) => !visibleIds.includes(id),
+      );
+    } else {
+      hostSelectedUnbooked = [
+        ...new Set([...hostSelectedUnbooked, ...visibleIds]),
+      ];
+    }
+  } else if (hostFilter === "pending") {
+    const visible = gameState.tickets.filter(
+      (t) => t.isPending && !t.isFullHousieWinner,
+    );
+    const visibleIds = visible.map((t) => t.id);
+    const allSelected = visibleIds.every((id) =>
+      hostSelectedPending.includes(id),
+    );
+    if (allSelected) {
+      hostSelectedPending = hostSelectedPending.filter(
+        (id) => !visibleIds.includes(id),
+      );
+    } else {
+      hostSelectedPending = [
+        ...new Set([...hostSelectedPending, ...visibleIds]),
+      ];
+    }
+  }
   renderHost();
 }
 
@@ -1597,15 +1764,6 @@ async function deleteSelectedUnbooked() {
   }
 }
 
-async function deleteAllUnbooked() {
-  if (
-    await showConfirm("Delete ALL unbooked tickets? This cannot be undone.")
-  ) {
-    socket.emit("host:deleteAllUnbookedTickets");
-    hostSelectedUnbooked = [];
-  }
-}
-
 async function cancelSelectedPending() {
   if (hostSelectedPending.length === 0) return;
   if (
@@ -1614,13 +1772,6 @@ async function cancelSelectedPending() {
     socket.emit("host:cancelPendingTickets", {
       ticketIds: hostSelectedPending,
     });
-    hostSelectedPending = [];
-  }
-}
-
-async function cancelAllPending() {
-  if (await showConfirm("Cancel ALL pending bookings?")) {
-    socket.emit("host:cancelAllPendingTickets");
     hostSelectedPending = [];
   }
 }
@@ -1643,7 +1794,7 @@ function renderWizard() {
       <h3>[ STEP 1 ] [ Basic Information ]</h3>
       ${!hasWhatsApp ? '<p style="color:var(--danger)">⚠️ Please configure WhatsApp numbers first.</p>' : ""}
       <input type="text" id="wizardGameName" class="input" placeholder="Game Name *" value="${wizardConfig.gameName}" ${!hasWhatsApp ? "disabled" : ""}>
-      <input type="number" id="wizardTicketCount" class="input" value="${wizardConfig.ticketCount}" min="1" max="5000" ${!hasWhatsApp ? "disabled" : ""}>
+      <input type="number" id="wizardTicketCount" class="input" value="${wizardConfig.ticketCount}" min="1" max="1000" ${!hasWhatsApp ? "disabled" : ""}>
       <button id="wizardNext1" class="btn primary" ${!wizardConfig.gameName || !hasWhatsApp ? "disabled" : ""}>Next</button>
     `;
   } else if (wizardStep === 2) {
@@ -1733,8 +1884,10 @@ function renderWizard() {
 
 function renderPrizeCategories() {
   const container = document.getElementById("prizeCategoriesContainer");
+  // Added "Early Seven" to the list
   const categories = [
     "Early Five",
+    "Early Seven",
     "Top Line",
     "Middle Line",
     "Bottom Line",
@@ -2106,7 +2259,7 @@ function showWinnerModal(ticketId, winTimestamp) {
   const modal = document.getElementById("winnerModal");
   document.getElementById("modalWinnerInfo").innerHTML = `
     <div><strong>${winner.playerName}</strong> - ${ticketId}</div>
-    <div>${winner.pattern} - ${winner.prizeTitle} • ${winner.winTime}</div>
+    <div>${winner.pattern} - ${winner.prizeTitle}</div>
   `;
   let gridHtml = "";
   for (let r = 0; r < 3; r++) {
@@ -2133,7 +2286,9 @@ function showTicketGridModal() {
   let html = "";
   gameState.tickets.forEach((t) => {
     const num = t.id.split("-")[1];
-    const bookedClass = t.isBooked ? "booked" : "";
+    let bookedClass = "";
+    if (t.isBooked) bookedClass = "booked";
+    else if (t.isPending) bookedClass = "pending";
     html += `<div class="ticket-grid-item ${bookedClass}">${num}</div>`;
   });
   container.innerHTML = html;
@@ -2176,6 +2331,9 @@ function printPdfFromGrid() {
     if (ticket.isBooked) {
       doc.setFillColor(198, 246, 213);
       doc.rect(x, y, cellSize, cellSize, "F");
+    } else if (ticket.isPending) {
+      doc.setFillColor(255, 243, 205);
+      doc.rect(x, y, cellSize, cellSize, "F");
     }
     doc.setTextColor(0);
     doc.text(ticket.id.split("-")[1], x + cellSize / 2, y + cellSize / 2, {
@@ -2203,6 +2361,13 @@ function switchTab(tabId) {
   document.getElementById(`tab-${tabId}`).classList.add("active");
 
   currentTab = tabId;
+}
+
+// Collapsible nav bar – now toggles the tab content, not the navbar
+function toggleNavCollapse() {
+  tabContentCollapsed = !tabContentCollapsed;
+  const tabContent = document.getElementById("tabContent");
+  tabContent.style.display = tabContentCollapsed ? "none" : "block";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -2389,14 +2554,17 @@ document.addEventListener("DOMContentLoaded", () => {
     .getElementById("deleteSelectedUnbookedBtn")
     .addEventListener("click", deleteSelectedUnbooked);
   document
-    .getElementById("deleteAllUnbookedBtn")
-    .addEventListener("click", deleteAllUnbooked);
-  document
     .getElementById("cancelSelectedPendingBtn")
     .addEventListener("click", cancelSelectedPending);
-  document
-    .getElementById("cancelAllPendingBtn")
-    .addEventListener("click", cancelAllPending);
+
+  // Select All button
+  const selectAllBtn = document.createElement("button");
+  selectAllBtn.id = "selectAllBtn";
+  selectAllBtn.className = "btn primary small";
+  selectAllBtn.textContent = "Select All";
+  selectAllBtn.style.display = "none";
+  selectAllBtn.addEventListener("click", selectAllVisible);
+  document.getElementById("hostBatchActions").appendChild(selectAllBtn);
 
   document.querySelectorAll(".theme-toggle").forEach((btn) => {
     btn.addEventListener("click", toggleTheme);
@@ -2414,6 +2582,14 @@ document.addEventListener("DOMContentLoaded", () => {
         .getElementById("playerCompactGridModal")
         .classList.remove("show");
     });
+
+  // Cancel button for booked list modal
+  const cancelBookedModalBtn = document.getElementById("cancelBookedModalBtn");
+  if (cancelBookedModalBtn) {
+    cancelBookedModalBtn.addEventListener("click", () => {
+      document.getElementById("bookedListModal").classList.remove("show");
+    });
+  }
 
   updateUI();
 });

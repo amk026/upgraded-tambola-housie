@@ -76,7 +76,7 @@
             </div>
           </div>
 
-          <!-- Permanent WhatsApp Config Card -->
+          <!-- Permanent WhatsApp Config Card (collapsible) -->
           <div
             id="whatsappConfigContainer"
             class="whatsapp-config glass-card"
@@ -121,7 +121,7 @@
             <div id="wizardContainer"></div>
           </div>
 
-          <!-- Navigation Bar (visible when game exists) -->
+          <!-- Navigation Bar (visible when game exists, always visible) -->
           <div id="hostNavBar" class="host-nav" style="display: none">
             <button class="nav-btn active" data-tab="draworder">
               🎲 Draw Order
@@ -129,19 +129,23 @@
             <button class="nav-btn" data-tab="gamecontrol">
               🎮 Game Control
             </button>
+            <button
+              class="icon-btn"
+              onclick="toggleNavCollapse()"
+              style="margin-left: auto"
+            >
+              ⏫
+            </button>
           </div>
 
-          <!-- Tab Content Container (visible when game exists) -->
+          <!-- Tab Content Container (visible when game exists, can be collapsed) -->
           <div id="tabContent" class="tab-content" style="display: none">
-            <!-- Custom Draw Order Tab -->
+            <!-- Custom Draw Order Tab (with settings at top) -->
             <div id="tab-draworder" class="tab-pane active">
               <div id="customDrawOrderContainer"></div>
             </div>
             <!-- Game Control Tab -->
             <div id="tab-gamecontrol" class="tab-pane">
-              <!-- Game Settings Container -->
-              <div id="gameSettingsContainer"></div>
-
               <!-- Active Game Controls -->
               <div id="gameControls" class="controls-panel glass-card">
                 <div class="panel-header">
@@ -275,23 +279,17 @@
             </button>
           </div>
 
-          <!-- Host Batch Actions -->
+          <!-- Host Batch Actions (filter dependent) – only one delete and one cancel button -->
           <div
             id="hostBatchActions"
             class="batch-actions"
             style="display: none"
           >
             <button id="deleteSelectedUnbookedBtn" class="btn danger">
-              🗑️ Delete Selected Unbooked
-            </button>
-            <button id="deleteAllUnbookedBtn" class="btn danger">
-              🗑️ Delete All Unbooked
+              🗑️ Delete Selected
             </button>
             <button id="cancelSelectedPendingBtn" class="btn warning">
-              ❌ Cancel Selected Pending
-            </button>
-            <button id="cancelAllPendingBtn" class="btn warning">
-              ❌ Cancel All Pending
+              ❌ Cancel Selected
             </button>
           </div>
 
@@ -312,7 +310,7 @@
           </div>
         </div>
 
-        <!-- Prize Info Card -->
+        <!-- Prize Info Card (collapsible) -->
         <div
           id="playerPrizeInfo"
           class="prize-info-card glass-card"
@@ -322,11 +320,11 @@
         <!-- Scheduled Start Time Display -->
         <div id="playerScheduledTime" class="scheduled-time-container"></div>
 
-        <!-- View Available Button -->
+        <!-- View Available Button (centered) -->
         <button
           id="viewAvailableBtn"
           class="btn primary"
-          style="display: none; margin-bottom: 1rem"
+          style="display: none; margin: 0 auto 1rem auto; width: fit-content"
         >
           📋 View Available Tickets
         </button>
@@ -487,7 +485,7 @@
         </div>
       </div>
 
-      <!-- Booked List Modal -->
+      <!-- Booked List Modal (scrollable, buttons at bottom) -->
       <div id="bookedListModal" class="modal-overlay">
         <div class="modal-content glass-card">
           <div
@@ -499,23 +497,30 @@
               margin-bottom: 1rem;
             "
           >
-            <h3>📋 Booked Tickets</h3>
-            <div>
-              <button id="printBookedListBtn" class="btn primary small">
-                🖨️ Print PDF
-              </button>
-              <span class="close" style="margin-left: 0.5rem">&times;</span>
-            </div>
+            <h3>📋 Booked & Pending Tickets</h3>
+            <span class="close">&times;</span>
           </div>
-          <table class="booked-table">
-            <thead>
-              <tr>
-                <th>Ticket ID</th>
-                <th>Player Name</th>
-              </tr>
-            </thead>
-            <tbody id="bookedListBody"></tbody>
-          </table>
+          <div style="max-height: 300px; overflow-y: auto">
+            <table class="booked-table">
+              <thead>
+                <tr>
+                  <th>Ticket ID</th>
+                  <th>Player Name</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="bookedListBody"></tbody>
+            </table>
+          </div>
+          <div
+            class="button-group"
+            style="margin-top: 1rem; justify-content: center"
+          >
+            <button id="printBookedListBtn" class="btn primary">
+              🖨️ Print PDF
+            </button>
+            <button id="cancelBookedModalBtn" class="btn danger">Cancel</button>
+          </div>
         </div>
       </div>
 
@@ -551,13 +556,7 @@
 
     <script src="/js/script.js"></script>
     <script>
-      // Additional close handler for booked list modal
-      document
-        .getElementById("closeBookedListBtn")
-        ?.addEventListener("click", () => {
-          document.getElementById("bookedListModal").classList.remove("show");
-        });
-      // Additional close for compact grid modal
+      // Additional close handler for compact grid modal
       document
         .getElementById("closeCompactGridBtn2")
         ?.addEventListener("click", () => {

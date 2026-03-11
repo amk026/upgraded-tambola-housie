@@ -24,7 +24,7 @@ app.get("/*path", (req, res) => {
 let gameState = {
   // Basic Info
   gameName: "",
-  visibleToPlayers: true,
+  visibleToPlayers: false, // now false by default
 
   // Tickets
   tickets: [],
@@ -33,7 +33,7 @@ let gameState = {
   calledNumbers: [],
   drawSequence: [],
   drawIndex: 0,
-  customDrawSequence: null, // custom order set by host
+  customDrawSequence: null,
 
   // Prize categories
   prizeCategories: [],
@@ -58,7 +58,7 @@ let gameState = {
   pauseStartTime: null,
 
   // WhatsApp configuration
-  whatsappConfig: [], // { start: number, end: number, number: string, primary: boolean }
+  whatsappConfig: [],
 
   // Legacy fields
   maxWinners: 5,
@@ -66,7 +66,6 @@ let gameState = {
 
   // Settings
   allowMultipleWinsPerTicket: false,
-  // *** NEW: allow multiple tickets to win the same prize simultaneously ***
   allowMultipleWinnersPerPrize: true,
 };
 
@@ -177,11 +176,17 @@ const TambolaGenerator = {
   },
 };
 
-// ---------- Pattern Checkers (unchanged) ----------
+// ---------- Pattern Checkers (updated with Early Seven) ----------
 function checkEarlyFive(ticketNumbers, calledNumbers) {
   const flat = ticketNumbers.flat().filter((n) => n !== 0);
   const markedCount = flat.filter((n) => calledNumbers.includes(n)).length;
   return markedCount >= 5;
+}
+
+function checkEarlySeven(ticketNumbers, calledNumbers) {
+  const flat = ticketNumbers.flat().filter((n) => n !== 0);
+  const markedCount = flat.filter((n) => calledNumbers.includes(n)).length;
+  return markedCount >= 7;
 }
 
 function checkTopLine(ticketNumbers, calledNumbers) {
@@ -226,6 +231,7 @@ function checkCorners(ticketNumbers, calledNumbers) {
 
 const patternCheckers = {
   "Early Five": checkEarlyFive,
+  "Early Seven": checkEarlySeven,
   "Top Line": checkTopLine,
   "Middle Line": checkMiddleLine,
   "Bottom Line": checkBottomLine,
@@ -233,7 +239,7 @@ const patternCheckers = {
   Corners: checkCorners,
 };
 
-// ---------- Winner Detection (UPDATED with allowMultipleWinnersPerPrize) ----------
+// ---------- Winner Detection (unchanged) ----------
 function checkForWinners() {
   if (gameState.status !== "RUNNING") return;
 
@@ -263,19 +269,15 @@ function checkForWinners() {
 
     if (newlyCompleted.length === 0) continue;
 
-    // Find the first un-awarded prize in this category
     const prize = category.prizes.find((p) => !p.awarded);
     if (!prize) continue;
 
-    // *** NEW: Respect allowMultipleWinnersPerPrize ***
     if (gameState.allowMultipleWinnersPerPrize) {
-      // Award the SAME prize to EVERY ticket that just completed the pattern
       newlyCompleted.forEach((ticket) => {
         declareWinner(ticket, pattern, prize);
       });
       prize.awarded = true;
     } else {
-      // Only one winner gets the prize (pick the first)
       const winnerTicket = newlyCompleted[0];
       declareWinner(winnerTicket, pattern, prize);
       prize.awarded = true;
@@ -462,7 +464,7 @@ function resetGame() {
     gameEndReason: null,
     whatsappConfig: [],
     allowMultipleWinsPerTicket: false,
-    allowMultipleWinnersPerPrize: true, // *** NEW ***
+    allowMultipleWinnersPerPrize: true,
   };
   clearTimeouts();
   broadcastState();
@@ -494,6 +496,13 @@ io.on("connection", (socket) => {
     return true;
   };
 
+  // Release tickets to players
+  socket.on("host:releaseTickets", () => {
+    if (!requireHost()) return;
+    gameState.visibleToPlayers = true;
+    broadcastState();
+  });
+
   socket.on(
     "host:createGameWithConfig",
     ({ gameName, ticketCount, prizeCategories }) => {
@@ -507,7 +516,7 @@ io.on("connection", (socket) => {
       gameState = {
         ...gameState,
         gameName,
-        visibleToPlayers: true,
+        visibleToPlayers: false, // tickets hidden initially
         tickets,
         prizeCategories,
         calledNumbers: [],
@@ -534,7 +543,7 @@ io.on("connection", (socket) => {
         gameEndReason: null,
         whatsappConfig: gameState.whatsappConfig || [],
         allowMultipleWinsPerTicket: gameState.allowMultipleWinsPerTicket,
-        allowMultipleWinnersPerPrize: gameState.allowMultipleWinnersPerPrize, // preserve
+        allowMultipleWinnersPerPrize: gameState.allowMultipleWinnersPerPrize,
       };
       broadcastState();
     },
@@ -542,7 +551,6 @@ io.on("connection", (socket) => {
 
   socket.on("host:updateWhatsappConfig", ({ config }) => {
     if (!requireHost()) return;
-    // Validate: only one primary allowed
     const primaryCount = config.filter((r) => r.primary).length;
     if (primaryCount > 1) {
       socket.emit("host:error", { message: "Only one primary number allowed" });
@@ -564,7 +572,6 @@ io.on("connection", (socket) => {
     socket.emit("host:customDrawOrderSet", { success: true });
   });
 
-  // *** UPDATED: host:updateSettings now also handles allowMultipleWinnersPerPrize ***
   socket.on(
     "host:updateSettings",
     ({ allowMultipleWinsPerTicket, allowMultipleWinnersPerPrize }) => {
@@ -691,7 +698,7 @@ io.on("connection", (socket) => {
     gameState = {
       ...gameState,
       gameName: "Tambola Game",
-      visibleToPlayers: true,
+      visibleToPlayers: false,
       tickets,
       prizeCategories,
       calledNumbers: [],
