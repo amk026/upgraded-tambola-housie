@@ -301,14 +301,20 @@ function loadTheme() {
 }
 
 // ---------- SOCKET HANDLERS ----------
-socket.on("connect", () => {
-  console.log("Socket connected");
+function attemptHostLogin() {
   if (localStorage.getItem("hostAuth") === "true") {
     const username = localStorage.getItem("hostUser") || "admin";
     const password = localStorage.getItem("hostPass") || "myNewSecret";
     socket.emit("host:login", { username, password });
   }
-});
+}
+
+socket.on("connect", attemptHostLogin);
+
+// If already connected, try to login now
+if (socket.connected) {
+  attemptHostLogin();
+}
 
 socket.on("gameState", (newState) => {
   console.log(
