@@ -24,7 +24,7 @@ let gameState = {
   whatsappConfig: [],
   customDrawSequence: null,
   allowMultipleWinsPerTicket: false,
-  allowMultipleWinnersPerPrize: true,
+  // allowMultipleWinnersPerPrize is now permanently true (removed)
 };
 let isHostAuthenticated = false;
 let hostSearchTerm = "";
@@ -569,13 +569,6 @@ function renderGameSettings() {
         </label>
         <p class="setting-hint">If enabled, a ticket can win e.g. Early Five and Full House.</p>
       </div>
-      <div class="setting-item">
-        <label>
-          <input type="checkbox" id="allowMultipleWinnersPerPrizeCheck" ${gameState.allowMultipleWinnersPerPrize ? "checked" : ""}>
-          Allow multiple tickets to win the same prize (if they complete pattern simultaneously)
-        </label>
-        <p class="setting-hint">If disabled, only one ticket wins when multiple hit at once.</p>
-      </div>
       <button id="saveSettingsBtn" class="btn primary small">Save Settings</button>
     </div>
   `;
@@ -585,12 +578,8 @@ function renderGameSettings() {
     const multiTicket = document.getElementById(
       "allowMultipleWinsCheck",
     ).checked;
-    const multiWinner = document.getElementById(
-      "allowMultipleWinnersPerPrizeCheck",
-    ).checked;
     socket.emit("host:updateSettings", {
       allowMultipleWinsPerTicket: multiTicket,
-      allowMultipleWinnersPerPrize: multiWinner,
     });
     showAlert("Settings saved.");
   });
@@ -817,8 +806,6 @@ function renderCustomDrawOrder() {
       socket.emit("host:setCustomDrawOrder", { sequence: [] });
       document.getElementById("customDrawStatus").textContent =
         "✅ Custom order cleared.";
-      // Also show alert immediately? The socket response will trigger the alert,
-      // but we want it to say "cleared". The flag ensures that.
     });
 
   document
@@ -864,7 +851,7 @@ function simulateGame() {
 
   const calledNumbers = [];
   const allowMultipleWinsPerTicket = gameState.allowMultipleWinsPerTicket;
-  const allowMultipleWinnersPerPrize = gameState.allowMultipleWinnersPerPrize;
+  // allowMultipleWinnersPerPrize is always true
 
   const results = [];
 
@@ -901,56 +888,30 @@ function simulateGame() {
       const prize = category.prizes.find((p) => !p.awarded);
       if (!prize) continue;
 
-      if (allowMultipleWinnersPerPrize) {
-        newlyCompleted.forEach((ticket) => {
-          simWinners.push({
-            pattern,
-            prizeTitle: prize.title,
-            prizeAmount: prize.amount,
-            ticketId: ticket.id,
-            playerName: ticket.bookedBy,
-            callNumber: number,
-            callIndex: idx + 1,
-          });
-        });
-        prize.awarded = true;
-        results.push({
-          pattern,
-          prizeTitle: prize.title,
-          prizeAmount: prize.amount,
-          winners: newlyCompleted.map((t) => ({
-            ticketId: t.id,
-            playerName: t.bookedBy,
-            callNumber: number,
-            callIndex: idx + 1,
-          })),
-        });
-      } else {
-        const winnerTicket = newlyCompleted[0];
+      // Always allow multiple winners per prize
+      newlyCompleted.forEach((ticket) => {
         simWinners.push({
           pattern,
           prizeTitle: prize.title,
           prizeAmount: prize.amount,
-          ticketId: winnerTicket.id,
-          playerName: winnerTicket.bookedBy,
+          ticketId: ticket.id,
+          playerName: ticket.bookedBy,
           callNumber: number,
           callIndex: idx + 1,
         });
-        prize.awarded = true;
-        results.push({
-          pattern,
-          prizeTitle: prize.title,
-          prizeAmount: prize.amount,
-          winners: [
-            {
-              ticketId: winnerTicket.id,
-              playerName: winnerTicket.bookedBy,
-              callNumber: number,
-              callIndex: idx + 1,
-            },
-          ],
-        });
-      }
+      });
+      prize.awarded = true;
+      results.push({
+        pattern,
+        prizeTitle: prize.title,
+        prizeAmount: prize.amount,
+        winners: newlyCompleted.map((t) => ({
+          ticketId: t.id,
+          playerName: t.bookedBy,
+          callNumber: number,
+          callIndex: idx + 1,
+        })),
+      });
     }
 
     const allAwarded = prizeCategories.every((cat) =>

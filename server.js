@@ -66,7 +66,7 @@ let gameState = {
 
   // Settings
   allowMultipleWinsPerTicket: false,
-  allowMultipleWinnersPerPrize: true,
+  // allowMultipleWinnersPerPrize is now permanently true (removed from config)
 };
 
 let nextCallTimeout = null;
@@ -239,7 +239,7 @@ const patternCheckers = {
   Corners: checkCorners,
 };
 
-// ---------- Winner Detection (unchanged) ----------
+// ---------- Winner Detection ----------
 function checkForWinners() {
   if (gameState.status !== "RUNNING") return;
 
@@ -272,16 +272,11 @@ function checkForWinners() {
     const prize = category.prizes.find((p) => !p.awarded);
     if (!prize) continue;
 
-    if (gameState.allowMultipleWinnersPerPrize) {
-      newlyCompleted.forEach((ticket) => {
-        declareWinner(ticket, pattern, prize);
-      });
-      prize.awarded = true;
-    } else {
-      const winnerTicket = newlyCompleted[0];
-      declareWinner(winnerTicket, pattern, prize);
-      prize.awarded = true;
-    }
+    // Always allow multiple winners per prize
+    newlyCompleted.forEach((ticket) => {
+      declareWinner(ticket, pattern, prize);
+    });
+    prize.awarded = true;
   }
 }
 
@@ -318,7 +313,7 @@ function declareWinner(ticket, pattern, prize) {
   broadcastState();
 }
 
-// ---------- Game Flow (unchanged) ----------
+// ---------- Game Flow ----------
 function startCountdown(seconds) {
   gameState.status = "COUNTDOWN";
   gameState.countdownEndTime = Date.now() + seconds * 1000;
@@ -464,7 +459,7 @@ function resetGame() {
     gameEndReason: null,
     whatsappConfig: [],
     allowMultipleWinsPerTicket: false,
-    allowMultipleWinnersPerPrize: true,
+    // allowMultipleWinnersPerPrize permanently true
   };
   clearTimeouts();
   broadcastState();
@@ -516,7 +511,7 @@ io.on("connection", (socket) => {
       gameState = {
         ...gameState,
         gameName,
-        visibleToPlayers: false, // tickets hidden initially
+        visibleToPlayers: false,
         tickets,
         prizeCategories,
         calledNumbers: [],
@@ -543,7 +538,7 @@ io.on("connection", (socket) => {
         gameEndReason: null,
         whatsappConfig: gameState.whatsappConfig || [],
         allowMultipleWinsPerTicket: gameState.allowMultipleWinsPerTicket,
-        allowMultipleWinnersPerPrize: gameState.allowMultipleWinnersPerPrize,
+        // allowMultipleWinnersPerPrize removed
       };
       broadcastState();
     },
@@ -572,20 +567,14 @@ io.on("connection", (socket) => {
     socket.emit("host:customDrawOrderSet", { success: true });
   });
 
-  socket.on(
-    "host:updateSettings",
-    ({ allowMultipleWinsPerTicket, allowMultipleWinnersPerPrize }) => {
-      if (!requireHost()) return;
-      if (allowMultipleWinsPerTicket !== undefined) {
-        gameState.allowMultipleWinsPerTicket = allowMultipleWinsPerTicket;
-      }
-      if (allowMultipleWinnersPerPrize !== undefined) {
-        gameState.allowMultipleWinnersPerPrize = allowMultipleWinnersPerPrize;
-      }
-      broadcastState();
-      socket.emit("host:settingsUpdated", { success: true });
-    },
-  );
+  socket.on("host:updateSettings", ({ allowMultipleWinsPerTicket }) => {
+    if (!requireHost()) return;
+    if (allowMultipleWinsPerTicket !== undefined) {
+      gameState.allowMultipleWinsPerTicket = allowMultipleWinsPerTicket;
+    }
+    broadcastState();
+    socket.emit("host:settingsUpdated", { success: true });
+  });
 
   // Batch delete unbooked tickets
   socket.on("host:deleteTickets", ({ ticketIds }) => {
@@ -722,7 +711,7 @@ io.on("connection", (socket) => {
       gameEndReason: null,
       whatsappConfig: gameState.whatsappConfig || [],
       allowMultipleWinsPerTicket: gameState.allowMultipleWinsPerTicket,
-      allowMultipleWinnersPerPrize: gameState.allowMultipleWinnersPerPrize,
+      // allowMultipleWinnersPerPrize removed
     };
     broadcastState();
   });
